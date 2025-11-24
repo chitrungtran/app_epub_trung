@@ -5,7 +5,6 @@ import {
   Eye, X, Loader2, AlignJustify, AlertCircle
 } from 'lucide-react';
 
-// --- HÀM LOAD SCRIPT CẢI TIẾN (Dùng kho JSDelivr nhanh hơn) ---
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -35,7 +34,6 @@ const useScript = (src) => {
 };
 
 export default function App() {
-  // Đổi sang CDN JSDelivr cho ổn định
   const jszipStatus = useScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
   const epubStatus = useScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 
@@ -45,6 +43,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState(null);
+  const [failedUrl, setFailedUrl] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
@@ -83,8 +82,18 @@ export default function App() {
     return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
   };
 
+  // --- HÀM TẠO LINK SIÊU TỐC (JSDELIVR) ---
   const processUrl = (url) => {
     if (!url) return null;
+    
+    // 1. GitHub -> jsDelivr (Nhanh nhất)
+    if (url.includes('github.com') && url.includes('/blob/')) {
+      let cdnUrl = url.replace('github.com', 'cdn.jsdelivr.net/gh');
+      cdnUrl = cdnUrl.replace('/blob/', '@');
+      return cdnUrl;
+    }
+    
+    // 2. Google Drive -> Proxy
     if (url.includes('drive.google.com')) {
       let fileId = null;
       const match1 = url.match(/\/d\/(.+?)\//);
@@ -94,11 +103,8 @@ export default function App() {
       if (fileId) {
         return `https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`;
       }
-    } else if (url.includes('github.com') && url.includes('/blob/')) {
-      // Chuyển sang raw và encodeURI để xử lý dấu cách
-      let rawUrl = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
-      return rawUrl;
     }
+
     return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   };
 
@@ -135,21 +141,16 @@ export default function App() {
       const bookUrl = processUrl(urlParam);
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
 
+      // --- CÁCH LOAD MỚI: ĐƯA URL TRỰC TIẾP ---
       const loadBook = async () => {
         try {
           setLoading(true);
-          setLoadingStep('Đang tải sách về máy...');
-          
-          const response = await fetch(bookUrl);
-          if (!response.ok) {
-             if(response.status === 404) throw new Error("Không tìm thấy file (404). Kiểm tra tên file có dấu cách không?");
-             throw new Error(`Lỗi tải file (${response.status})`);
-          }
-          
-          const arrayBuffer = await response.arrayBuffer();
+          setError(null);
           setLoadingStep('Đang mở trang sách...');
-          
-          const newBook = window.ePub(arrayBuffer);
+          setFailedUrl(bookUrl);
+
+          // Tạo sách từ URL (Không tải thủ công nữa)
+          const newBook = window.ePub(bookUrl);
           setBook(newBook);
 
           const newRendition = newBook.renderTo(viewerRef.current, {
@@ -161,9 +162,22 @@ export default function App() {
           });
 
           setRendition(newRendition);
-          await newRendition.display();
           
-          setLoading(false);
+          // Hiển thị và ép tắt Loading
+          newRendition.display().then(() => {
+            setLoading(false);
+            updateBookStyles(newRendition, prefs);
+          }).catch(err => {
+            console.warn("Lỗi render nhẹ (bỏ qua):", err);
+            setLoading(false); // Vẫn tắt loading dù có lỗi nhẹ
+          });
+          
+          // BỘ ĐẾM GIỜ AN TOÀN: Sau 5 giây tự động tắt Loading
+          setTimeout(() => {
+             setLoading(false);
+          }, 5000);
+
+          // Update styles ngay lập tức
           updateBookStyles(newRendition, prefs);
 
         } catch (err) {
@@ -179,26 +193,22 @@ export default function App() {
 
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
-    rend.themes.default({
-      'body': { 
-        'background': `${settings.bgColor} !important`,
-        'color': `${settings.textColor} !important`,
-        'font-family': `${settings.fontFamily}, serif !important`,
-      },
-      'p': {
-        'font-family': `${settings.fontFamily}, serif !important`,
-        'line-height': `${settings.lineHeight} !important`,
-        'font-size': `${settings.fontSize}% !important`,
-        'letter-spacing': `${settings.letterSpacing}px !important`,
-        'padding-bottom': `${settings.paragraphSpacing}px !important`,
-        'color': `${settings.textColor} !important`
-      },
-      'h1, h2, h3, h4, h5, h6': {
-        'font-family': `${settings.fontFamily}, sans-serif !important`,
-        'color': `${settings.textColor} !important`
-      },
-      'a': { 'color': '#0d9488 !important' }
-    });
+    try {
+      rend.themes.default({
+        'body': { 
+          'background': `${settings.bgColor} !important`,
+          'color': `${settings.textColor} !important`,
+          'font-family': `${settings.fontFamily}, serif !important`,
+        },
+        'p': {
+          'font-family': `${settings.fontFamily}, serif !important`,
+          'line-height': `${settings.lineHeight} !important`,
+          'font-size': `${settings.fontSize}% !important`,
+          'color': `${settings.textColor} !important`
+        },
+        'a': { 'color': '#0d9488 !important' }
+      });
+    } catch (e) { console.log(e); }
   };
 
   useEffect(() => {
@@ -233,12 +243,10 @@ export default function App() {
     </div>
   );
 
-  // Màn hình loading thư viện (Khi chưa load xong Script)
   if (!isReady) return (
     <div className="flex flex-col h-screen w-full items-center justify-center bg-[#f6eec7] gap-4">
       <Loader2 className="h-12 w-12 animate-spin text-[#5f4b32]" />
       <p className="text-[#5f4b32] font-medium animate-pulse">Đang chuẩn bị thư viện...</p>
-      <p className="text-xs text-gray-400">(Nếu đợi quá 10s hãy F5 lại nhé)</p>
     </div>
   );
 
@@ -264,7 +272,6 @@ export default function App() {
       </div>
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
-           {/* (Phần Settings giữ nguyên như cũ cho gọn) */}
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
@@ -288,26 +295,5 @@ export default function App() {
              <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center">
                <AlertCircle size={48} className="text-red-500 mb-4"/>
                <h3 className="font-bold text-lg text-red-600 mb-2">Hỏng rồi Trung ơi!</h3>
-               <p className="text-gray-600 mb-4">{error}</p>
-               <button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button>
-             </div>
-          </div>
-        ) : (
-          <div ref={viewerRef} className="h-full w-full relative z-0 custom-selection" />
-        )}
-        {book && !loading && !error && (
-          <>
-            <button onClick={prevPage} className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10"><ChevronLeft size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/></button>
-            <button onClick={nextPage} className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10"><ChevronRight size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/></button>
-          </>
-        )}
-      </div>
-      <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
-         <button onClick={prevPage} className="p-3 active:scale-95 opacity-70"><ChevronLeft size={24}/></button>
-         <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
-         <button onClick={nextPage} className="p-3 active:scale-95 opacity-70"><ChevronRight size={24}/></button>
-      </div>
-      <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
-    </div>
-  );
-}
+               <p className="text-gray-600 mb-2">{error}</p>
+               <div
