@@ -46,13 +46,11 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
-  // --- REFS ĐỂ XỬ LÝ CLICK OUTSIDE ---
   const settingsRef = useRef(null); 
   const settingsBtnRef = useRef(null); 
   const tocRef = useRef(null); 
   const tocBtnRef = useRef(null); 
 
-  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontSize: 100,
     lineHeight: 1.6,
@@ -70,7 +68,7 @@ export default function App() {
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
   ];
 
-  // --- XỬ LÝ ĐÓNG MENU KHI CLICK RA NGOÀI ---
+  // --- XỬ LÝ CLICK OUTSIDE ---
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showSettings && settingsRef.current && !settingsRef.current.contains(event.target) && !settingsBtnRef.current.contains(event.target)) {
@@ -112,6 +110,7 @@ export default function App() {
     return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   };
 
+  // --- FIX LỖI FULLSCREEN KHÔNG CUỘN ĐƯỢC ---
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(e => console.warn(e));
@@ -122,13 +121,23 @@ export default function App() {
     }
   };
 
+  // Lắng nghe sự kiện thay đổi màn hình để Resize lại sách
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const isFull = !!document.fullscreenElement;
+      setIsFullscreen(isFull);
+      
+      // QUAN TRỌNG: Khi đổi chế độ màn hình, bắt sách tính toán lại kích thước ngay
+      if (rendition) {
+         setTimeout(() => {
+            rendition.resize();
+            if(viewerRef.current) viewerRef.current.focus(); // Trả lại focus cho khung đọc
+         }, 300); // Đợi 300ms cho hiệu ứng bung màn hình xong hẳn mới resize
+      }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
+  }, [rendition]); // Thêm dependency rendition
 
   useEffect(() => {
     if (jszipStatus === 'ready' && epubStatus === 'ready' && !isReady) {
@@ -166,14 +175,10 @@ export default function App() {
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
       if (!urlParam) { setLoading(false); return; }
 
-      // --- GIẢI MÃ LINK ẨN (Đã bịt miệng console.log) ---
       if (!urlParam.startsWith('http')) {
          try {
             urlParam = atob(urlParam);
-            // Im lặng là vàng, không log ra nữa
-         } catch (e) {
-            // Kệ nó
-         }
+         } catch (e) {}
       }
 
       const bookUrl = processUrl(urlParam);
@@ -204,7 +209,6 @@ export default function App() {
 
           setRendition(newRendition);
           
-          // Bắt sự kiện click trong sách để đóng menu
           newRendition.on('click', () => {
              setShowSettings(false);
              setShowToc(false);
@@ -220,7 +224,9 @@ export default function App() {
           
           setLoading(false);
           
-          if (viewerRef.current) { viewerRef.current.focus(); }
+          if (viewerRef.current) { 
+             viewerRef.current.focus(); 
+          }
           
           updateBookStyles(newRendition, prefs);
 
@@ -417,7 +423,13 @@ export default function App() {
         {error ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center"><AlertCircle size={48} className="text-red-500 mb-4"/><h3 className="font-bold text-lg text-red-600 mb-2">Có lỗi rồi Trung ơi!</h3><p className="text-gray-600 mb-4 text-center">{error}</p><button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button></div></div>
         ) : (
-          <div ref={viewerRef} tabIndex={0} className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none pb-8" />
+          // FIX: Thêm touchStart rỗng để kích hoạt scroll trên iOS và Android
+          <div 
+            ref={viewerRef} 
+            tabIndex={0} 
+            onTouchStart={() => {}} 
+            className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none pb-8" 
+          />
         )}
         
         {book && !loading && !error && (
@@ -428,7 +440,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer */}
       {book && !loading && !error && (
         <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden">
            <span>Đã đọc</span>
@@ -452,7 +463,17 @@ export default function App() {
          <div className="absolute top-0 left-0 h-[3px] bg-teal-600 transition-all duration-500 shadow-sm" style={{ width: `${progress}%` }}></div>
       </div>
 
-      <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
+      <style>{`
+        .custom-scroll::-webkit-scrollbar { height: 4px; } 
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } 
+        ::selection { background: #14b8a6; color: white; } 
+        .epub-container iframe { overflow: hidden !important; }
+        /* FIX: Thêm CSS này để mobile cuộn mượt hơn */
+        .custom-selection {
+           -webkit-overflow-scrolling: touch !important;
+           overflow-y: auto !important;
+        }
+      `}</style>
     </div>
   );
 }
