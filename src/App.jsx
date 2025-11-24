@@ -38,15 +38,13 @@ export default function App() {
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState(null);
   
-  // State quản lý giao diện
   const [showSettings, setShowSettings] = useState(false);
-  const [showToc, setShowToc] = useState(false); // Hiện mục lục
-  const [toc, setToc] = useState([]);            // Dữ liệu mục lục
+  const [showToc, setShowToc] = useState(false);
+  const [toc, setToc] = useState([]);
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
-  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontFamily: 'Merriweather',
     fontSize: 100,
@@ -178,7 +176,7 @@ export default function App() {
 
           setRendition(newRendition);
           
-          // --- FIX LỖI TREO: ÉP HIỂN THỊ CHƯƠNG ĐẦU TIÊN ---
+          // Ép hiển thị chương đầu
           await newBook.ready;
           const startCfi = newBook.spine.get(0).href;
           await newRendition.display(startCfi);
@@ -188,7 +186,7 @@ export default function App() {
           if (viewerRef.current) { viewerRef.current.focus(); }
           updateBookStyles(newRendition, prefs);
 
-          // --- LẤY MỤC LỤC ---
+          // Lấy mục lục
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
 
@@ -233,6 +231,7 @@ export default function App() {
 
   const nextChapter = () => {
      if (rendition) {
+       // Nhảy sang chương tiếp theo và reset cuộn lên đầu
        rendition.next().then(() => {
           if(viewerRef.current) viewerRef.current.scrollTop = 0;
        });
@@ -246,12 +245,18 @@ export default function App() {
      }
   }
 
-  // --- HÀM NHẢY TỚI CHƯƠNG (FIXED) ---
+  // --- HÀM NHẢY TỚI CHƯƠNG (ĐÃ SỬA LỖI NHẢY GIỮA CHƯƠNG) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      setShowToc(false); // Tắt menu
-      // Chỉ cần gọi display(href), tự nó sẽ nhảy đúng chỗ
-      rendition.display(href).catch(err => console.warn("Lỗi nhảy trang:", err));
+      // QUAN TRỌNG: Cắt bỏ phần sau dấu # để ép nó về đầu chương
+      const cleanHref = href.split('#')[0]; 
+      console.log("Navigating to:", cleanHref); // Log để kiểm tra
+
+      rendition.display(cleanHref).then(() => {
+         setShowToc(false);
+         // Ép cuộn lên đầu cho chắc cú
+         if(viewerRef.current) viewerRef.current.scrollTop = 0;
+      }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
 
@@ -307,7 +312,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
           
-          {/* 1. NÚT MỤC LỤC */}
+          {/* NÚT MỤC LỤC */}
           <button 
             onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
             className={`p-2 rounded-full transition-colors ${showToc ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
@@ -316,12 +321,12 @@ export default function App() {
             <List size={20} />
           </button>
 
-          {/* 2. NÚT THEME */}
+          {/* NÚT THEME */}
           <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
             {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
           </button>
           
-          {/* 3. NÚT CÀI ĐẶT */}
+          {/* NÚT CÀI ĐẶT */}
           <button 
             onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} 
             className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
@@ -329,14 +334,14 @@ export default function App() {
             <Settings size={20} />
           </button>
           
-          {/* 4. NÚT FULLSCREEN */}
+          {/* NÚT FULLSCREEN */}
           <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors hidden sm:block">
             {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
           </button>
         </div>
       </div>
 
-      {/* MENU MỤC LỤC (HIỆN RA KHI BẤM NÚT LIST) */}
+      {/* MENU MỤC LỤC */}
       {showToc && (
         <div className="absolute top-16 right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white">
@@ -364,7 +369,7 @@ export default function App() {
         </div>
       )}
 
-      {/* SETTINGS PANEL (Giữ nguyên) */}
+      {/* SETTINGS PANEL */}
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
