@@ -41,7 +41,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
-  // Cấu hình mặc định
+  // Cấu hình mặc định - Mới vào là màu Vàng Ghibli
   const [prefs, setPrefs] = useState({
     fontFamily: 'Merriweather',
     fontSize: 100,
@@ -50,7 +50,7 @@ export default function App() {
     paragraphSpacing: 10,
     textColor: '#5f4b32',
     bgColor: '#f6eec7',
-    themeMode: 'sepia',
+    themeMode: 'sepia', // Đánh dấu là sepia để xử lý logic
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
 
@@ -63,9 +63,9 @@ export default function App() {
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
-    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' }, 
+    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' }, // Index 1: Màu vàng Ghibli
     { label: 'Dịu', text: '#374151', bg: '#f3f4f6' },
-    { label: 'Tối', text: '#e2e8f0', bg: '#1a202c' },
+    { label: 'Tối', text: '#e2e8f0', bg: '#1a202c' }, // Index 3: Màu tối
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
   ];
 
@@ -121,27 +121,27 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // --- XỬ LÝ PHÍM BẤM TOÀN CỤC (Fix lỗi không cuộn được) ---
+  // --- XỬ LÝ PHÍM BẤM TOÀN CỤC (Fix lỗi focus) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
-      // Nếu bấm mũi tên Lên/Xuống -> Cuộn trang
+      // Mũi tên Lên/Xuống -> Cuộn mượt hơn
       if (e.key === 'ArrowDown') {
-        if (viewerRef.current) viewerRef.current.scrollTop += 50;
+        if (viewerRef.current) viewerRef.current.scrollBy({ top: 100, behavior: 'smooth' });
         e.preventDefault();
       }
       if (e.key === 'ArrowUp') {
-        if (viewerRef.current) viewerRef.current.scrollTop -= 50;
+        if (viewerRef.current) viewerRef.current.scrollBy({ top: -100, behavior: 'smooth' });
         e.preventDefault();
       }
-      // Nếu bấm Trái/Phải -> Chuyển chương
+      // Trái/Phải -> Chuyển chương
       if (e.key === 'ArrowRight') nextChapter();
       if (e.key === 'ArrowLeft') prevChapter();
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [rendition]); // Chạy lại khi rendition thay đổi
+  }, [rendition]);
 
   useEffect(() => {
     if (isReady && viewerRef.current) {
@@ -179,7 +179,7 @@ export default function App() {
           await newRendition.display();
           setLoading(false);
           
-          // --- FIX LỖI MẤT FOCUS: Tự động Focus vào khung đọc ---
+          // Tự động focus để nhận phím ngay
           if (viewerRef.current) {
             viewerRef.current.focus();
           }
@@ -197,15 +197,11 @@ export default function App() {
     }
   }, [isReady]);
 
-  // --- FIX LỖI FONT CHỮ: Dùng API chuẩn của ePub ---
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
-      // Cách 1: Ép font bằng API
       rend.themes.font(settings.fontFamily);
       rend.themes.fontSize(`${settings.fontSize}%`);
-
-      // Cách 2: Ép bằng CSS đè lên
       rend.themes.default({
         'body': { 
           'background': `${settings.bgColor} !important`,
@@ -218,7 +214,7 @@ export default function App() {
           'line-height': `${settings.lineHeight} !important`,
           'font-size': `${settings.fontSize}% !important`,
           'color': `${settings.textColor} !important`,
-          'text-align': 'justify' // Căn đều 2 bên cho đẹp
+          'text-align': 'justify'
         },
         'h1, h2, h3': {
           'font-family': `${settings.fontFamily}, sans-serif !important`,
@@ -246,12 +242,25 @@ export default function App() {
      }
   }
 
+  // --- FIX LOGIC CHUYỂN MÀU (THÔNG MINH HƠN) ---
+  const toggleTheme = () => {
+    // Nếu đang tối -> Chuyển về Sepia (Vàng nâu)
+    if (prefs.themeMode === 'dark') {
+      applyColorTheme(colorThemes[1]); // Index 1 là Sepia
+    } else {
+      // Nếu đang sáng (bất kể Trắng hay Vàng) -> Chuyển sang Tối
+      applyColorTheme(colorThemes[3]); // Index 3 là Tối
+    }
+  }
+
   const applyColorTheme = (theme) => {
+    // Xác định xem theme mới là sáng hay tối
+    const isDark = theme.bg === '#000000' || theme.bg === '#1a202c';
     setPrefs(prev => ({
       ...prev,
       textColor: theme.text,
       bgColor: theme.bg,
-      themeMode: theme.bg === '#000000' || theme.bg === '#1a202c' ? 'dark' : 'light'
+      themeMode: isDark ? 'dark' : 'light' // Chỉ lưu trạng thái Sáng/Tối để toggle dễ
     }));
   };
 
@@ -282,15 +291,15 @@ export default function App() {
     <div className="flex flex-col h-screen w-full overflow-hidden font-sans transition-colors duration-300" style={{ backgroundColor: prefs.bgColor, color: prefs.textColor }}>
       <EyeProtectionOverlay />
       
-      {/* HEADER */}
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
         <div className="flex items-center gap-2">
           <BookOpen size={20} className="text-teal-600" />
           <span className="font-bold text-lg hidden sm:block font-serif">Ghibli Reader Pro</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => applyColorTheme(prefs.themeMode === 'light' ? colorThemes[3] : colorThemes[0])} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
-            {prefs.themeMode === 'light' ? <Moon size={20}/> : <Sun size={20}/>}
+          {/* Nút chuyển màu đã sửa logic */}
+          <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
+            {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
           </button>
           <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}>
             <Settings size={20} />
@@ -301,12 +310,13 @@ export default function App() {
         </div>
       </div>
 
-      {/* SETTINGS PANEL */}
+      {/* SETTINGS PANEL (Giữ nguyên) */}
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
            </div>
@@ -334,11 +344,9 @@ export default function App() {
              </div>
           </div>
         ) : (
-          /* QUAN TRỌNG: Thêm tabIndex=0 để div nhận được focus */
           <div ref={viewerRef} tabIndex={0} className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none" />
         )}
         
-        {/* Nút điều hướng */}
         {book && !loading && !error && (
           <>
             <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
@@ -347,7 +355,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Footer Mobile */}
       <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
          <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronLeft size={24}/><span className="text-[10px]">Trước</span></button>
          <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
