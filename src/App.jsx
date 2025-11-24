@@ -37,15 +37,16 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState(null);
-  const [showSettings, setShowSettings] = useState(false);
   
-  // --- THÊM STATE CHO MỤC LỤC ---
-  const [showToc, setShowToc] = useState(false); 
-  const [toc, setToc] = useState([]); // Chứa danh sách chương
-
+  // State quản lý giao diện
+  const [showSettings, setShowSettings] = useState(false);
+  const [showToc, setShowToc] = useState(false); // Hiện mục lục
+  const [toc, setToc] = useState([]);            // Dữ liệu mục lục
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
+  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontFamily: 'Merriweather',
     fontSize: 100,
@@ -54,7 +55,7 @@ export default function App() {
     paragraphSpacing: 10,
     textColor: '#5f4b32',
     bgColor: '#f6eec7',
-    themeMode: 'sepia', 
+    themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
 
@@ -125,7 +126,7 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // Keydown handler
+  // --- PHÍM TẮT ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
@@ -140,7 +141,6 @@ export default function App() {
       if (e.key === 'ArrowRight') nextChapter();
       if (e.key === 'ArrowLeft') prevChapter();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [rendition]);
@@ -171,25 +171,26 @@ export default function App() {
           const newRendition = newBook.renderTo(viewerRef.current, {
             width: '100%',
             height: '100%',
-            flow: 'scrolled-doc',
+            flow: 'scrolled', 
             manager: 'continuous',
             allowScriptedContent: false
           });
 
           setRendition(newRendition);
           
-          await newRendition.display();
+          // --- FIX LỖI TREO: ÉP HIỂN THỊ CHƯƠNG ĐẦU TIÊN ---
+          await newBook.ready;
+          const startCfi = newBook.spine.get(0).href;
+          await newRendition.display(startCfi);
+          
           setLoading(false);
           
-          if (viewerRef.current) {
-            viewerRef.current.focus();
-          }
-
+          if (viewerRef.current) { viewerRef.current.focus(); }
           updateBookStyles(newRendition, prefs);
 
-          // --- LẤY MỤC LỤC (TOC) ---
+          // --- LẤY MỤC LỤC ---
           const navigation = await newBook.loaded.navigation;
-          setToc(navigation.toc); // Lưu danh sách chương vào biến toc
+          setToc(navigation.toc); 
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -221,10 +222,6 @@ export default function App() {
           'color': `${settings.textColor} !important`,
           'text-align': 'justify'
         },
-        'h1, h2, h3': {
-          'font-family': `${settings.fontFamily}, sans-serif !important`,
-          'color': `${settings.textColor} !important`
-        },
         'a': { 'color': '#0d9488 !important' }
       });
     } catch (e) { console.log(e); }
@@ -247,11 +244,11 @@ export default function App() {
      }
   }
 
-  // --- HÀM NHẢY TỚI CHƯƠNG (TOC) ---
+  // Hàm nhảy mục lục
   const navigateToChapter = (href) => {
     if (rendition) {
       rendition.display(href);
-      setShowToc(false); // Tắt menu sau khi chọn
+      setShowToc(false);
       if(viewerRef.current) viewerRef.current.scrollTop = 0;
     }
   };
@@ -307,36 +304,40 @@ export default function App() {
           <span className="font-bold text-lg hidden sm:block font-serif">Ghibli Reader Pro</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Nút Mục Lục Mới */}
+          
+          {/* 1. NÚT MỤC LỤC */}
           <button 
-            onClick={() => { setShowToc(!showToc); setShowSettings(false); }} // Tắt settings nếu mở TOC
+            onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
             className={`p-2 rounded-full transition-colors ${showToc ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
             title="Mục lục"
           >
             <List size={20} />
           </button>
 
+          {/* 2. NÚT THEME */}
           <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
             {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
           </button>
           
+          {/* 3. NÚT CÀI ĐẶT */}
           <button 
-            onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} // Tắt TOC nếu mở Settings
+            onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} 
             className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
           >
             <Settings size={20} />
           </button>
           
+          {/* 4. NÚT FULLSCREEN */}
           <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors hidden sm:block">
             {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
           </button>
         </div>
       </div>
 
-      {/* MENU MỤC LỤC (TOC PANEL) */}
+      {/* MENU MỤC LỤC (HIỆN RA KHI BẤM NÚT LIST) */}
       {showToc && (
         <div className="absolute top-16 right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
-           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10">
+           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white">
              <span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span>
              <button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button>
            </div>
@@ -349,7 +350,7 @@ export default function App() {
                        onClick={() => navigateToChapter(chapter.href)}
                        className="w-full text-left px-4 py-3 text-sm hover:bg-teal-50 hover:text-teal-700 rounded-lg transition-colors border-b border-gray-50 last:border-0"
                      >
-                       {chapter.label.trim() || `Chương ${index + 1}`}
+                       {chapter.label ? chapter.label.trim() : `Chương ${index + 1}`}
                      </button>
                    </li>
                  ))}
@@ -361,7 +362,7 @@ export default function App() {
         </div>
       )}
 
-      {/* SETTINGS PANEL */}
+      {/* SETTINGS PANEL (Giữ nguyên) */}
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
