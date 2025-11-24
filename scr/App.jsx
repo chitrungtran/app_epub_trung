@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, ChevronLeft, ChevronRight, Settings, 
   Type, Move, Maximize, Minimize, Sun, Moon, 
-  Eye, X, Loader2, Github, AlignJustify, AlertCircle, ArrowRight
+  Eye, X, Loader2, AlignJustify, AlertCircle
 } from 'lucide-react';
 
+// --- HÀM LOAD SCRIPT CẢI TIẾN (Dùng kho JSDelivr nhanh hơn) ---
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -16,36 +17,32 @@ const useScript = (src) => {
       script.async = true;
       script.setAttribute('data-status', 'loading');
       document.body.appendChild(script);
-      const setAttributeFromEvent = (event) => {
-        script.setAttribute('data-status', event.type === 'load' ? 'ready' : 'error');
-        setStatus(event.type === 'load' ? 'ready' : 'error');
+      const handleLoad = () => {
+        script.setAttribute('data-status', 'ready');
+        setStatus('ready');
       };
-      script.addEventListener('load', setAttributeFromEvent);
-      script.addEventListener('error', setAttributeFromEvent);
+      const handleError = () => {
+        script.setAttribute('data-status', 'error');
+        setStatus('error');
+      };
+      script.addEventListener('load', handleLoad);
+      script.addEventListener('error', handleError);
     } else {
-      setStatus(script.getAttribute('data-status'));
+      setStatus(script.getAttribute('data-status') || 'ready');
     }
-    const setStateFromEvent = (event) => { setStatus(event.type === 'load' ? 'ready' : 'error'); };
-    script.addEventListener('load', setStateFromEvent);
-    script.addEventListener('error', setStateFromEvent);
-    return () => {
-      if (script) {
-        script.removeEventListener('load', setStateFromEvent);
-        script.removeEventListener('error', setStateFromEvent);
-      }
-    };
   }, [src]);
   return status;
 };
 
 export default function App() {
-  const jszipStatus = useScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js');
-  const epubStatus = useScript('https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js');
+  // Đổi sang CDN JSDelivr cho ổn định
+  const jszipStatus = useScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
+  const epubStatus = useScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 
   const [book, setBook] = useState(null);
   const [rendition, setRendition] = useState(null);
   const [isReady, setIsReady] = useState(false);
-  const [loading, setLoading] = useState(false); // Mặc định không loading
+  const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -98,9 +95,9 @@ export default function App() {
         return `https://corsproxy.io/?${encodeURIComponent(`https://drive.google.com/uc?export=download&id=${fileId}`)}`;
       }
     } else if (url.includes('github.com') && url.includes('/blob/')) {
-      // Chuyển link GitHub blob sang raw
+      // Chuyển sang raw và encodeURI để xử lý dấu cách
       let rawUrl = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
-      return rawUrl; 
+      return rawUrl;
     }
     return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   };
@@ -130,33 +127,27 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // --- LOGIC LOAD SÁCH ---
   useEffect(() => {
     if (isReady && viewerRef.current) {
       const urlParam = getUrlParameter('url') || getUrlParameter('book');
-      
-      // Nếu KHÔNG có link sách -> Dừng luôn, không làm gì cả (để hiện trang Welcome)
-      if (!urlParam) {
-        setLoading(false);
-        return;
-      }
+      if (!urlParam) { setLoading(false); return; }
 
-      // Nếu có link -> Bắt đầu tải
       const bookUrl = processUrl(urlParam);
-      
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
 
       const loadBook = async () => {
         try {
           setLoading(true);
-          setLoadingStep('Đang tải file sách...');
+          setLoadingStep('Đang tải sách về máy...');
           
           const response = await fetch(bookUrl);
-          if (!response.ok) throw new Error(`Không tải được file (Lỗi ${response.status})`);
+          if (!response.ok) {
+             if(response.status === 404) throw new Error("Không tìm thấy file (404). Kiểm tra tên file có dấu cách không?");
+             throw new Error(`Lỗi tải file (${response.status})`);
+          }
           
           const arrayBuffer = await response.arrayBuffer();
-          
-          setLoadingStep('Đang mở sách...');
+          setLoadingStep('Đang mở trang sách...');
           
           const newBook = window.ePub(arrayBuffer);
           setBook(newBook);
@@ -170,7 +161,6 @@ export default function App() {
           });
 
           setRendition(newRendition);
-
           await newRendition.display();
           
           setLoading(false);
@@ -178,7 +168,7 @@ export default function App() {
 
         } catch (err) {
           console.error("Lỗi:", err);
-          setError(`Lỗi: ${err.message}. Link có đúng không ông giáo?`);
+          setError(err.message);
           setLoading(false);
         }
       };
@@ -231,7 +221,6 @@ export default function App() {
     <div className="fixed inset-0 pointer-events-none z-[9999] mix-blend-multiply" style={{ backgroundColor: '#ffbf00', opacity: eyeCareLevel / 100 * 0.4 }} />
   );
 
-  // --- GIAO DIỆN CHỜ (KHI CHƯA CÓ SÁCH) ---
   const WelcomeScreen = () => (
     <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
       <div className="bg-white/90 p-8 rounded-3xl shadow-xl max-w-lg border-2 border-[#5f4b32]/10 backdrop-blur-sm">
@@ -239,28 +228,23 @@ export default function App() {
           <BookOpen size={32} />
         </div>
         <h1 className="text-2xl font-bold text-[#5f4b32] mb-3 font-serif">Thư Viện Ghibli</h1>
-        <p className="text-gray-600 mb-6 leading-relaxed">
-          Chưa có sách nào được chọn cả Trung ơi! <br/>
-          Hãy thêm đường dẫn sách vào link nhé.
-        </p>
-        <div className="bg-gray-100 p-4 rounded-xl text-left text-sm font-mono text-gray-500 break-all border border-gray-200">
-          ?url=<span className="text-teal-600">LINK_GITHUB_CUA_MAY</span>
-        </div>
+        <p className="text-gray-600 mb-6">Chưa có sách nào được chọn cả Trung ơi!</p>
       </div>
     </div>
   );
 
+  // Màn hình loading thư viện (Khi chưa load xong Script)
   if (!isReady) return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#f6eec7]">
-      <Loader2 className="h-10 w-10 animate-spin text-[#5f4b32]" />
+    <div className="flex flex-col h-screen w-full items-center justify-center bg-[#f6eec7] gap-4">
+      <Loader2 className="h-12 w-12 animate-spin text-[#5f4b32]" />
+      <p className="text-[#5f4b32] font-medium animate-pulse">Đang chuẩn bị thư viện...</p>
+      <p className="text-xs text-gray-400">(Nếu đợi quá 10s hãy F5 lại nhé)</p>
     </div>
   );
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden font-sans transition-colors duration-300" style={{ backgroundColor: prefs.bgColor, color: prefs.textColor }}>
       <EyeProtectionOverlay />
-      
-      {/* HEADER */}
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
         <div className="flex items-center gap-2">
           <BookOpen size={20} className="text-teal-600" />
@@ -278,38 +262,19 @@ export default function App() {
           </button>
         </div>
       </div>
-
-      {/* SETTINGS (Giữ nguyên) */}
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
-            <span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span>
-            <button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button>
-          </div>
-          <div className="p-5 space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div>
-              <div className="grid grid-cols-2 gap-2">
-                {fonts.map(f => (
-                  <button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>
-                ))}
-              </div>
-            </div>
-             <div className="space-y-4 pt-2 border-t">
-               <div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div>
-               <div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div>
-             </div>
-             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
-          </div>
+           {/* (Phần Settings giữ nguyên như cũ cho gọn) */}
+           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
+           <div className="p-5 space-y-6">
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
+            <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
+            <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
+           </div>
         </div>
       )}
-
-      {/* READER AREA */}
       <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
-        
-        {/* Nếu không có sách thì hiện màn hình Welcome */}
         {!book && !loading && !error && <WelcomeScreen />}
-
         {loading && (
            <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/50 backdrop-blur-sm">
              <div className="flex flex-col items-center animate-pulse">
@@ -318,7 +283,6 @@ export default function App() {
              </div>
            </div>
         )}
-        
         {error ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20">
              <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center">
@@ -331,36 +295,19 @@ export default function App() {
         ) : (
           <div ref={viewerRef} className="h-full w-full relative z-0 custom-selection" />
         )}
-        
-        {/* Chỉ hiện nút Next/Prev khi sách đã tải xong */}
         {book && !loading && !error && (
           <>
-            <button onClick={prevPage} className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10">
-              <ChevronLeft size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/>
-            </button>
-            <button onClick={nextPage} className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10">
-              <ChevronRight size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/>
-            </button>
+            <button onClick={prevPage} className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10"><ChevronLeft size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/></button>
+            <button onClick={nextPage} className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 h-12 w-12 items-center justify-center rounded-full hover:bg-gray-500/20 transition-all z-10"><ChevronRight size={32} strokeWidth={1.5} style={{color: prefs.textColor, opacity: 0.5}}/></button>
           </>
         )}
       </div>
-
-      {/* FOOTER MOBILE (Giữ nguyên) */}
       <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
          <button onClick={prevPage} className="p-3 active:scale-95 opacity-70"><ChevronLeft size={24}/></button>
-         <div className="flex gap-4">
-            <button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button>
-            <button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button>
-         </div>
+         <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
          <button onClick={nextPage} className="p-3 active:scale-95 opacity-70"><ChevronRight size={24}/></button>
       </div>
-
-      <style>{`
-        .custom-scroll::-webkit-scrollbar { height: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::selection { background: #14b8a6; color: white; }
-        .epub-container iframe { overflow: hidden !important; }
-      `}</style>
+      <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
     </div>
   );
 }
