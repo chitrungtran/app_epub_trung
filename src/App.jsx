@@ -387,4 +387,92 @@ export default function App() {
       {showToc && (
         <div 
           ref={tocRef} 
-          onMouseLeave={() => setShowToc(
+          onMouseLeave={() => setShowToc(false)} 
+          className="absolute top-16 right-4 md:right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200"
+        >
+           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white"><span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span><button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
+           <div className="p-2">{toc.length > 0 ? (<ul className="space-y-1">{toc.map((chapter, index) => (<li key={index}><button onClick={() => navigateToChapter(chapter.href)} className="w-full text-left px-4 py-3 text-sm hover:bg-teal-50 hover:text-teal-700 rounded-lg transition-colors border-b border-gray-50 last:border-0">{chapter.label ? chapter.label.trim() : `Chương ${index + 1}`}</button></li>))}</ul>) : (<div className="p-4 text-center text-gray-400 text-sm">Không tìm thấy mục lục</div>)}</div>
+        </div>
+      )}
+
+      {/* Bảng Cài đặt */}
+      {showSettings && (
+        <div 
+          ref={settingsRef} 
+          onMouseLeave={() => setShowSettings(false)} 
+          className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200"
+        >
+           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
+           <div className="p-5 space-y-6">
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
+            <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
+            <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
+           </div>
+        </div>
+      )}
+
+      <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
+        {!book && !loading && !error && <WelcomeScreen />}
+        {loading && (
+           <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/50 backdrop-blur-sm">
+             <div className="flex flex-col items-center animate-pulse">
+               <Loader2 className="h-10 w-10 text-teal-600 animate-spin mb-3" />
+               <p className="text-sm font-bold text-teal-800">{loadingStep}</p>
+             </div>
+           </div>
+        )}
+        {error ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center"><AlertCircle size={48} className="text-red-500 mb-4"/><h3 className="font-bold text-lg text-red-600 mb-2">Có lỗi rồi Trung ơi!</h3><p className="text-gray-600 mb-4 text-center">{error}</p><button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button></div></div>
+        ) : (
+          <div 
+            ref={viewerRef} 
+            tabIndex={0} 
+            onTouchStart={() => {}} 
+            className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none pb-8" 
+          />
+        )}
+        
+        {book && !loading && !error && (
+          <>
+            <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
+            <button onClick={nextChapter} className="hidden md:flex absolute right-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương sau"><ChevronRight size={24} className="group-active:translate-x-1 transition-transform" /></button>
+          </>
+        )}
+      </div>
+
+      {book && !loading && !error && (
+        <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden">
+           <span>Đã đọc</span>
+           <span className="font-bold text-sm">{progress}%</span>
+           <div className="absolute top-0 left-0 h-[2px] bg-teal-500 transition-all duration-300" style={{ width: `${progress}%` }}></div>
+        </div>
+      )}
+
+      <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md mb-8">
+         <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronLeft size={24}/><span className="text-[10px]">Trước</span></button>
+         <div className="flex gap-4">
+            <button onClick={() => setShowToc(!showToc)}><List size={20} className="opacity-60"/></button>
+            <button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button>
+         </div>
+         <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
+      </div>
+
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-500 z-50">
+         <span>Ghibli Reader Pro</span>
+         <div className="flex items-center gap-2"><span>Tiến độ:</span><span className="font-mono font-bold text-teal-700">{progress}%</span></div>
+         <div className="absolute top-0 left-0 h-[3px] bg-teal-600 transition-all duration-500 shadow-sm" style={{ width: `${progress}%` }}></div>
+      </div>
+
+      <style>{`
+        .custom-scroll::-webkit-scrollbar { height: 4px; } 
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } 
+        ::selection { background: #14b8a6; color: white; } 
+        .epub-container iframe { overflow: hidden !important; }
+        .custom-selection {
+           -webkit-overflow-scrolling: touch !important;
+           overflow-y: auto !important;
+        }
+      `}</style>
+    </div>
+  );
+}
