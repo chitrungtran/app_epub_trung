@@ -48,7 +48,7 @@ export default function App() {
 
   // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
-    fontFamily: 'Literata', // Mặc định dùng font giống Bookerly
+    fontFamily: 'Literata',
     fontSize: 100,
     lineHeight: 1.6,
     letterSpacing: 0,
@@ -59,9 +59,8 @@ export default function App() {
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
 
-  // DANH SÁCH FONT CHUẨN UNICODE & ĐẸP
   const fonts = [
-    { name: 'Literata', label: 'Bookerly (Xịn)', type: 'serif' }, // Font chuyên cho Ebook
+    { name: 'Literata', label: 'Bookerly (Xịn)', type: 'serif' },
     { name: 'Merriweather', label: 'Báo Chí', type: 'serif' },
     { name: 'Nunito', label: 'Tròn Trịa', type: 'sans-serif' },
     { name: 'Patrick Hand', label: 'Viết Tay', type: 'cursive' },
@@ -102,7 +101,6 @@ export default function App() {
     return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   };
 
-  // --- XỬ LÝ FULLSCREEN CHUẨN ---
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(e => console.warn(e));
@@ -113,7 +111,6 @@ export default function App() {
     }
   };
 
-  // Lắng nghe sự kiện fullscreen của trình duyệt để đổi icon đúng
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -128,7 +125,6 @@ export default function App() {
     }
   }, [jszipStatus, epubStatus]);
 
-  // Load Fonts từ Google (Thêm Literata và Nunito)
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;500;700&family=Merriweather:wght@300;400;700&family=Nunito:wght@400;600&family=Patrick+Hand&family=Roboto:wght@400;500&display=swap';
@@ -207,7 +203,6 @@ export default function App() {
              }
           });
           
-          // Tạo location map ngầm
           newBook.locations.generate(1000).catch(e => console.warn(e));
 
         } catch (err) {
@@ -264,12 +259,13 @@ export default function App() {
      }
   }
 
+  // --- HÀM NHẢY TỚI CHƯƠNG (TRẢ LẠI NGUYÊN BẢN) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      const cleanHref = href.split('#')[0]; 
-      rendition.display(cleanHref).then(() => {
+      // Không cắt xén gì nữa, để nguyên href cho nó tự xử
+      rendition.display(href).then(() => {
          setShowToc(false);
-         if(viewerRef.current) viewerRef.current.scrollTop = 0;
+         // Không ép cuộn lên đầu nữa, để nó tự tìm anchor
       }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
@@ -345,7 +341,6 @@ export default function App() {
             <Settings size={20} />
           </button>
           
-          {/* Nút Fullscreen (Fix Icon không đổi) */}
           <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
             {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
           </button>
@@ -363,25 +358,9 @@ export default function App() {
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
-            {/* --- PHẦN FONT CHỮ --- */}
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
-            
-            {/* --- PHẦN MÀU SẮC (ĐÃ KHÔI PHỤC) --- */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div>
-              <div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">
-                {colorThemes.map((c, idx) => (
-                  <button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}>
-                    <span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* --- PHẦN CỠ CHỮ, DÒNG --- */}
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
-            
-            {/* --- BẢO VỆ MẮT --- */}
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
            </div>
         </div>
