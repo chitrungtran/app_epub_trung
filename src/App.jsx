@@ -39,17 +39,17 @@ export default function App() {
   const [error, setError] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentChapter, setCurrentChapter] = useState(''); // Hiển thị tên chương
   const viewerRef = useRef(null);
 
-  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontFamily: 'Merriweather',
     fontSize: 100,
     lineHeight: 1.6,
     letterSpacing: 0,
     paragraphSpacing: 10,
-    textColor: '#5f4b32', // Màu chữ nâu đất Ghibli
-    bgColor: '#f6eec7',   // Màu giấy cũ
+    textColor: '#5f4b32',
+    bgColor: '#f6eec7',
     themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
@@ -63,7 +63,7 @@ export default function App() {
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
-    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' }, // Chuẩn Ghibli
+    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' },
     { label: 'Dịu', text: '#374151', bg: '#f3f4f6' },
     { label: 'Tối', text: '#e2e8f0', bg: '#1a202c' },
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
@@ -78,13 +78,11 @@ export default function App() {
 
   const processUrl = (url) => {
     if (!url) return null;
-    // Chuyển GitHub sang jsDelivr cho nhanh
     if (url.includes('github.com') && url.includes('/blob/')) {
        let cdnUrl = url.replace('github.com', 'cdn.jsdelivr.net/gh');
        cdnUrl = cdnUrl.replace('/blob/', '@');
        return cdnUrl;
     }
-    // Google Drive hoặc link khác thì qua Proxy
     if (url.includes('drive.google.com')) {
       let fileId = null;
       const match1 = url.match(/\/d\/(.+?)\//);
@@ -137,23 +135,21 @@ export default function App() {
           setError(null);
           setLoadingStep('Đang tải sách về máy...');
           
-          // Bước 1: Tải file về RAM trước (ArrayBuffer) - Cách này ổn định nhất
           const response = await fetch(bookUrl);
-          if (!response.ok) throw new Error(`Lỗi tải file (${response.status}). Link hỏng rồi!`);
+          if (!response.ok) throw new Error(`Lỗi tải file (${response.status})`);
           
           const arrayBuffer = await response.arrayBuffer();
           setLoadingStep('Đang mở trang sách...');
           
-          // Bước 2: Nạp vào ePub
           const newBook = window.ePub(arrayBuffer);
           setBook(newBook);
 
-          // Bước 3: Vẽ lên màn hình (Chế độ Cuộn Dọc - Scrolled)
+          // SỬA LẠI CHẾ ĐỘ VIEW: scrolled-doc (Tốt nhất cho cuộn)
           const newRendition = newBook.renderTo(viewerRef.current, {
             width: '100%',
             height: '100%',
-            flow: 'scrolled',       // Cuộn dọc
-            manager: 'continuous',  // Load liên tục
+            flow: 'scrolled-doc',   // Chế độ cuộn dọc liền mạch
+            manager: 'continuous',  // Cố gắng load liên tục
             allowScriptedContent: false
           });
 
@@ -162,8 +158,12 @@ export default function App() {
           await newRendition.display();
           setLoading(false);
           
-          // Áp dụng cài đặt ngay sau khi load
           updateBookStyles(newRendition, prefs);
+
+          // Lắng nghe sự kiện đổi chương để cập nhật tên
+          newRendition.on('relocated', (location) => {
+             // Có thể lưu vị trí đọc ở đây nếu muốn
+          });
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -184,17 +184,12 @@ export default function App() {
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
           'font-family': `${settings.fontFamily}, serif !important`,
+          'padding': '20px 10px !important' // Thêm padding cho dễ đọc
         },
         'p': {
           'font-family': `${settings.fontFamily}, serif !important`,
           'line-height': `${settings.lineHeight} !important`,
           'font-size': `${settings.fontSize}% !important`,
-          'letter-spacing': `${settings.letterSpacing}px !important`,
-          'padding-bottom': `${settings.paragraphSpacing}px !important`,
-          'color': `${settings.textColor} !important`
-        },
-        'h1, h2, h3, h4, h5, h6': {
-          'font-family': `${settings.fontFamily}, sans-serif !important`,
           'color': `${settings.textColor} !important`
         },
         'a': { 'color': '#0d9488 !important' }
@@ -206,12 +201,19 @@ export default function App() {
     if (rendition) updateBookStyles(rendition, prefs);
   }, [prefs, rendition]);
 
-  // Hàm điều hướng (Cho cuộn dọc thì dùng scroll)
-  const scrollUp = () => {
-     if (viewerRef.current) viewerRef.current.scrollTop -= window.innerHeight * 0.8;
+  // --- CHỨC NĂNG MỚI: CHUYỂN CHƯƠNG (CỨU HỘ KHI KHÔNG CUỘN ĐƯỢC) ---
+  const nextChapter = () => {
+     if (rendition) {
+       rendition.next(); // Nhảy sang file tiếp theo trong epub
+       // Cuộn lên đầu trang
+       if(viewerRef.current) viewerRef.current.scrollTop = 0;
+     }
   }
-  const scrollDown = () => {
-     if (viewerRef.current) viewerRef.current.scrollTop += window.innerHeight * 0.8;
+  const prevChapter = () => {
+     if (rendition) {
+       rendition.prev();
+       if(viewerRef.current) viewerRef.current.scrollTop = 0;
+     }
   }
 
   const applyColorTheme = (theme) => {
@@ -275,7 +277,6 @@ export default function App() {
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
-            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
            </div>
@@ -306,20 +307,44 @@ export default function App() {
           <div ref={viewerRef} className="h-full w-full relative z-0 custom-selection overflow-y-auto" />
         )}
         
-        {/* Nút cuộn nhanh (thay cho lật trang) */}
+        {/* NÚT CHUYỂN CHƯƠNG THẦN THÁNH (Fix lỗi kẹt trang) */}
         {book && !loading && !error && (
           <>
-            <button onClick={scrollUp} className="hidden md:flex absolute right-4 bottom-20 p-3 bg-black/10 hover:bg-black/20 rounded-full transition-all z-10"><ChevronLeft size={24} className="rotate-90" /></button>
-            <button onClick={scrollDown} className="hidden md:flex absolute right-4 bottom-6 p-3 bg-black/10 hover:bg-black/20 rounded-full transition-all z-10"><ChevronRight size={24} className="rotate-90" /></button>
+            {/* Nút Trái: Về Chương Trước */}
+            <button 
+              onClick={prevChapter} 
+              className="hidden md:flex absolute left-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group"
+              title="Chương trước"
+            >
+              <ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" />
+            </button>
+
+            {/* Nút Phải: Sang Chương Sau */}
+            <button 
+              onClick={nextChapter} 
+              className="hidden md:flex absolute right-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group"
+              title="Chương sau"
+            >
+              <ChevronRight size={24} className="group-active:translate-x-1 transition-transform" />
+            </button>
           </>
         )}
       </div>
 
-      {/* FOOTER MOBILE */}
+      {/* FOOTER MOBILE (Đổi nút cuộn thành nút chuyển chương) */}
       <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
-         <button onClick={scrollUp} className="p-3 active:scale-95 opacity-70"><ChevronLeft size={24} className="rotate-90"/></button>
-         <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
-         <button onClick={scrollDown} className="p-3 active:scale-95 opacity-70"><ChevronRight size={24} className="rotate-90"/></button>
+         <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center">
+            <ChevronLeft size={24}/>
+            <span className="text-[10px]">Trước</span>
+         </button>
+         <div className="flex gap-4">
+            <button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button>
+            <button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button>
+         </div>
+         <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center">
+            <ChevronRight size={24}/>
+            <span className="text-[10px]">Sau</span>
+         </button>
       </div>
 
       <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
