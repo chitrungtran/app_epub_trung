@@ -39,9 +39,9 @@ export default function App() {
   const [error, setError] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentChapter, setCurrentChapter] = useState(''); // Hiển thị tên chương
   const viewerRef = useRef(null);
 
+  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontFamily: 'Merriweather',
     fontSize: 100,
@@ -63,7 +63,7 @@ export default function App() {
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
-    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' },
+    { label: 'Giấy', text: '#5f4b32', bg: '#f6eec7' }, 
     { label: 'Dịu', text: '#374151', bg: '#f3f4f6' },
     { label: 'Tối', text: '#e2e8f0', bg: '#1a202c' },
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
@@ -121,6 +121,28 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
+  // --- XỬ LÝ PHÍM BẤM TOÀN CỤC (Fix lỗi không cuộn được) ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!rendition) return;
+      // Nếu bấm mũi tên Lên/Xuống -> Cuộn trang
+      if (e.key === 'ArrowDown') {
+        if (viewerRef.current) viewerRef.current.scrollTop += 50;
+        e.preventDefault();
+      }
+      if (e.key === 'ArrowUp') {
+        if (viewerRef.current) viewerRef.current.scrollTop -= 50;
+        e.preventDefault();
+      }
+      // Nếu bấm Trái/Phải -> Chuyển chương
+      if (e.key === 'ArrowRight') nextChapter();
+      if (e.key === 'ArrowLeft') prevChapter();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rendition]); // Chạy lại khi rendition thay đổi
+
   useEffect(() => {
     if (isReady && viewerRef.current) {
       const urlParam = getUrlParameter('url') || getUrlParameter('book');
@@ -144,12 +166,11 @@ export default function App() {
           const newBook = window.ePub(arrayBuffer);
           setBook(newBook);
 
-          // SỬA LẠI CHẾ ĐỘ VIEW: scrolled-doc (Tốt nhất cho cuộn)
           const newRendition = newBook.renderTo(viewerRef.current, {
             width: '100%',
             height: '100%',
-            flow: 'scrolled-doc',   // Chế độ cuộn dọc liền mạch
-            manager: 'continuous',  // Cố gắng load liên tục
+            flow: 'scrolled-doc',
+            manager: 'continuous',
             allowScriptedContent: false
           });
 
@@ -158,12 +179,12 @@ export default function App() {
           await newRendition.display();
           setLoading(false);
           
-          updateBookStyles(newRendition, prefs);
+          // --- FIX LỖI MẤT FOCUS: Tự động Focus vào khung đọc ---
+          if (viewerRef.current) {
+            viewerRef.current.focus();
+          }
 
-          // Lắng nghe sự kiện đổi chương để cập nhật tên
-          newRendition.on('relocated', (location) => {
-             // Có thể lưu vị trí đọc ở đây nếu muốn
-          });
+          updateBookStyles(newRendition, prefs);
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -176,20 +197,31 @@ export default function App() {
     }
   }, [isReady]);
 
+  // --- FIX LỖI FONT CHỮ: Dùng API chuẩn của ePub ---
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
+      // Cách 1: Ép font bằng API
+      rend.themes.font(settings.fontFamily);
+      rend.themes.fontSize(`${settings.fontSize}%`);
+
+      // Cách 2: Ép bằng CSS đè lên
       rend.themes.default({
         'body': { 
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
           'font-family': `${settings.fontFamily}, serif !important`,
-          'padding': '20px 10px !important' // Thêm padding cho dễ đọc
+          'padding': '20px 10px !important'
         },
         'p': {
           'font-family': `${settings.fontFamily}, serif !important`,
           'line-height': `${settings.lineHeight} !important`,
           'font-size': `${settings.fontSize}% !important`,
+          'color': `${settings.textColor} !important`,
+          'text-align': 'justify' // Căn đều 2 bên cho đẹp
+        },
+        'h1, h2, h3': {
+          'font-family': `${settings.fontFamily}, sans-serif !important`,
           'color': `${settings.textColor} !important`
         },
         'a': { 'color': '#0d9488 !important' }
@@ -201,11 +233,9 @@ export default function App() {
     if (rendition) updateBookStyles(rendition, prefs);
   }, [prefs, rendition]);
 
-  // --- CHỨC NĂNG MỚI: CHUYỂN CHƯƠNG (CỨU HỘ KHI KHÔNG CUỘN ĐƯỢC) ---
   const nextChapter = () => {
      if (rendition) {
-       rendition.next(); // Nhảy sang file tiếp theo trong epub
-       // Cuộn lên đầu trang
+       rendition.next();
        if(viewerRef.current) viewerRef.current.scrollTop = 0;
      }
   }
@@ -304,47 +334,24 @@ export default function App() {
              </div>
           </div>
         ) : (
-          <div ref={viewerRef} className="h-full w-full relative z-0 custom-selection overflow-y-auto" />
+          /* QUAN TRỌNG: Thêm tabIndex=0 để div nhận được focus */
+          <div ref={viewerRef} tabIndex={0} className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none" />
         )}
         
-        {/* NÚT CHUYỂN CHƯƠNG THẦN THÁNH (Fix lỗi kẹt trang) */}
+        {/* Nút điều hướng */}
         {book && !loading && !error && (
           <>
-            {/* Nút Trái: Về Chương Trước */}
-            <button 
-              onClick={prevChapter} 
-              className="hidden md:flex absolute left-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group"
-              title="Chương trước"
-            >
-              <ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" />
-            </button>
-
-            {/* Nút Phải: Sang Chương Sau */}
-            <button 
-              onClick={nextChapter} 
-              className="hidden md:flex absolute right-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group"
-              title="Chương sau"
-            >
-              <ChevronRight size={24} className="group-active:translate-x-1 transition-transform" />
-            </button>
+            <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
+            <button onClick={nextChapter} className="hidden md:flex absolute right-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương sau"><ChevronRight size={24} className="group-active:translate-x-1 transition-transform" /></button>
           </>
         )}
       </div>
 
-      {/* FOOTER MOBILE (Đổi nút cuộn thành nút chuyển chương) */}
+      {/* Footer Mobile */}
       <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
-         <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center">
-            <ChevronLeft size={24}/>
-            <span className="text-[10px]">Trước</span>
-         </button>
-         <div className="flex gap-4">
-            <button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button>
-            <button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button>
-         </div>
-         <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center">
-            <ChevronRight size={24}/>
-            <span className="text-[10px]">Sau</span>
-         </button>
+         <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronLeft size={24}/><span className="text-[10px]">Trước</span></button>
+         <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
+         <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
       </div>
 
       <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
