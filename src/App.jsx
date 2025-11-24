@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
+// Load thư viện JSZip (Quan trọng nhất)
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -23,11 +24,11 @@ const useScript = (src) => {
 };
 
 export default function App() {
+  // Chỉ cần JSZip là đủ để mổ xẻ
   const jszipStatus = useScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js');
-  const epubStatus = useScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 
   const [logs, setLogs] = useState([]);
-  const [extractedContent, setExtractedContent] = useState([]); 
+  const [zipContents, setZipContents] = useState([]); 
 
   const addLog = (msg) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
@@ -52,15 +53,15 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (jszipStatus === 'ready' && epubStatus === 'ready') {
-      addLog("✅ Thư viện sẵn sàng. Bắt đầu MỔ XẺ V2 (Tìm cả Ảnh)...");
+    if (jszipStatus === 'ready') {
+      addLog("✅ JSZip sẵn sàng. Bắt đầu PHẪU THUẬT TƯƠI...");
       const urlParam = getUrlParameter('url');
       if (!urlParam) { addLog("⚠️ Thiếu link sách."); return; }
 
       const bookUrl = processUrl(urlParam);
       addLog(`🚀 Link: ${bookUrl}`);
 
-      const extractBookData = async () => {
+      const unzipBook = async () => {
         try {
           addLog("⏳ Đang tải file...");
           const response = await fetch(bookUrl);
@@ -69,66 +70,67 @@ export default function App() {
           const arrayBuffer = await response.arrayBuffer();
           addLog(`📦 Tải xong: ${(arrayBuffer.byteLength / 1024).toFixed(2)} KB`);
 
-          addLog("📖 Đang phân tích...");
-          const book = window.ePub(arrayBuffer);
-          await book.ready;
+          addLog("🔓 Đang giải nén (Unzip)...");
           
-          const spineCount = book.spine.length;
-          addLog(`📚 Có ${spineCount} chương. Bắt đầu quét...`);
+          // Dùng JSZip đọc file trực tiếp
+          const zip = new window.JSZip();
+          const contents = await zip.loadAsync(arrayBuffer);
+          
+          const filesData = [];
+          
+          // Quét tất cả các file bên trong cục nén đó
+          const filenames = Object.keys(contents.files);
+          addLog(`📂 Tìm thấy ${filenames.length} file bên trong.`);
 
-          const contentList = [];
-          
-          // Quét tối đa 20 chương đầu
-          for (let i = 0; i < Math.min(spineCount, 20); i++) {
-            addLog(`...Đang đọc chương ${i + 1}/${spineCount}`);
-            const item = book.spine.get(i);
+          // Lọc lấy file ảnh và file HTML
+          for (let filename of filenames) {
+            const file = contents.files[filename];
+            if (file.dir) continue; // Bỏ qua thư mục
+
+            // Nếu là file HTML/XHTML (Chứa chữ)
+            if (filename.match(/\.(html|xhtml|htm|xml)$/i)) {
+               addLog(`📄 Đang đọc text: ${filename}`);
+               const text = await file.async("string");
+               // Lọc lấy chữ thô từ HTML
+               const parser = new DOMParser();
+               const doc = parser.parseFromString(text, "text/html");
+               const cleanText = doc.body.innerText.trim();
+               
+               if (cleanText.length > 0) {
+                 filesData.push({ type: 'text', name: filename, content: cleanText });
+               }
+            }
             
-            if (item) {
-              try {
-                // Load document của chương đó
-                const doc = await item.load(book.load.bind(book));
-                
-                // 1. Lấy chữ
-                const text = (doc.body.innerText || "").trim();
-                
-                // 2. Lấy ảnh
-                const images = Array.from(doc.body.querySelectorAll('img')).map(img => img.src);
-
-                if (text.length > 0 || images.length > 0) {
-                   contentList.push({
-                     id: i,
-                     text: text,
-                     images: images
-                   });
-                   addLog(`✅ Chương ${i+1}: Tìm thấy ${text.length} ký tự và ${images.length} ảnh.`);
-                } else {
-                   addLog(`⚠️ Chương ${i+1}: Trống rỗng?`);
-                }
-              } catch (e) {
-                addLog(`❌ Lỗi đọc chương ${i+1}: ${e.message}`);
-              }
+            // Nếu là file ẢNH (JPG, PNG, GIF)
+            else if (filename.match(/\.(jpg|jpeg|png|gif)$/i)) {
+               addLog(`🖼️ Đang đọc ảnh: ${filename}`);
+               const base64 = await file.async("base64");
+               const imgData = `data:image/${filename.split('.').pop()};base64,${base64}`;
+               filesData.push({ type: 'image', name: filename, content: imgData });
             }
           }
 
-          if (contentList.length === 0) {
-             addLog("💀 VÔ VỌNG: Không tìm thấy chữ hay ảnh nào cả!");
+          if (filesData.length === 0) {
+             addLog("💀 File rỗng hoặc toàn file lạ (CSS/Font/...)");
           } else {
-             setExtractedContent(contentList);
-             addLog("🎉 XONG! Kéo xuống dưới xem hàng!");
+             // Sắp xếp cho file nào có nội dung lên đầu
+             filesData.sort((a, b) => a.name.localeCompare(b.name));
+             setZipContents(filesData);
+             addLog("🎉 XONG! Kéo xuống dưới xem ruột gan nó có gì!");
           }
 
         } catch (err) {
-          addLog(`❌ LỖI CHẾT NGƯỜI: ${err.message}`);
+          addLog(`❌ LỖI: ${err.message}`);
         }
       };
 
-      extractBookData();
+      unzipBook();
     }
-  }, [jszipStatus, epubStatus]);
+  }, [jszipStatus]);
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{borderBottom: '2px solid teal'}}>🕵️‍♂️ Máy Soi Nội Dung (Text + Image)</h1>
+      <h1 style={{borderBottom: '2px solid teal'}}>🛠️ Thợ Phá Khóa (Zip Explorer)</h1>
       
       {/* LOGS */}
       <div style={{ 
@@ -141,29 +143,24 @@ export default function App() {
 
       {/* HIỂN THỊ NỘI DUNG */}
       <div style={{ backgroundColor: '#fff', border: '1px solid #ccc', padding: '10px' }}>
-        {extractedContent.map((chap) => (
-          <div key={chap.id} style={{ marginBottom: '40px', borderBottom: '4px solid #eee', paddingBottom: '20px' }}>
-            <h3 style={{color: 'blue', backgroundColor: '#eee', padding: '5px'}}>Chương {chap.id + 1}</h3>
-            
-            {/* Hiển thị chữ nếu có */}
-            {chap.text && (
-              <div style={{whiteSpace: 'pre-wrap', marginBottom: '15px', fontSize: '16px', lineHeight: '1.6'}}>
-                {chap.text.substring(0, 500)}... 
-                {chap.text.length > 500 && <span style={{color:'gray'}}>(còn nữa)</span>}
-              </div>
-            )}
-
-            {/* Hiển thị ảnh nếu có */}
-            {chap.images.length > 0 && (
-              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                <p style={{fontWeight: 'bold', color: 'red'}}>👇 Tìm thấy {chap.images.length} ảnh:</p>
-                {chap.images.map((src, idx) => (
-                  <img key={idx} src={src} alt={`img-${idx}`} style={{maxWidth: '100%', border: '2px solid black'}} />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        {zipContents.length === 0 ? (
+           <p>Đang chờ dữ liệu...</p>
+        ) : (
+          zipContents.map((item, idx) => (
+            <div key={idx} style={{ marginBottom: '30px', borderBottom: '2px solid #eee', paddingBottom: '20px' }}>
+              <div style={{fontWeight: 'bold', color: 'purple', marginBottom: '5px'}}>File: {item.name}</div>
+              
+              {item.type === 'text' ? (
+                <div style={{whiteSpace: 'pre-wrap', backgroundColor: '#f9f9f9', padding: '10px', fontSize: '14px'}}>
+                  {item.content.substring(0, 1000)} 
+                  {item.content.length > 1000 && <span style={{color:'gray'}}>... (còn nữa)</span>}
+                </div>
+              ) : (
+                <img src={item.content} alt={item.name} style={{maxWidth: '100%', border: '1px solid black'}} />
+              )}
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
