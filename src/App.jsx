@@ -5,7 +5,6 @@ import {
   Eye, X, Loader2, AlignJustify, AlertCircle, List, Type
 } from 'lucide-react';
 
-// --- HÀM LOAD THƯ VIỆN (KHÔNG ĐỔI) ---
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -47,12 +46,11 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
-  // Cấu hình mặc định (Đã bỏ fontFamily)
   const [prefs, setPrefs] = useState({
     fontSize: 100,
     lineHeight: 1.6,
     textColor: '#5f4b32',
-    bgColor: '#f6eec7', // Màu giấy Ghibli mặc định
+    bgColor: '#f6eec7',
     themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
@@ -75,7 +73,6 @@ export default function App() {
   const processUrl = (url) => {
     if (!url) return null;
     if (url.includes('github.com') && url.includes('/blob/')) {
-       // Dùng Raw GitHub cho ổn định
        let rawUrl = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
        return rawUrl;
     }
@@ -116,7 +113,6 @@ export default function App() {
     }
   }, [jszipStatus, epubStatus]);
 
-  // Load font chỉ để trang trí UI bên ngoài (Header/Nút bấm)
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Patrick+Hand&display=swap';
@@ -124,7 +120,6 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // Xử lý phím tắt
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
@@ -143,11 +138,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [rendition]);
 
-  // --- LOGIC LOAD SÁCH ---
+  // --- LOGIC LOAD SÁCH (CÓ GIẢI MÃ ẨN LINK) ---
   useEffect(() => {
     if (isReady && viewerRef.current) {
-      const urlParam = getUrlParameter('url') || getUrlParameter('book');
+      // Lấy link từ URL
+      let urlParam = getUrlParameter('url') || getUrlParameter('book');
       if (!urlParam) { setLoading(false); return; }
+
+      // 👉 KIỂM TRA MÃ HÓA: Nếu link KHÔNG bắt đầu bằng 'http', tức là nó đã bị mã hóa
+      if (!urlParam.startsWith('http')) {
+         try {
+            // Dùng hàm atob để dịch ngược từ Base64 sang link thường
+            urlParam = atob(urlParam);
+            console.log("Đã giải mã link ẩn:", urlParam);
+         } catch (e) {
+            console.warn("Link không phải mã hóa Base64, kệ nó.");
+         }
+      }
 
       const bookUrl = processUrl(urlParam);
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
@@ -185,14 +192,11 @@ export default function App() {
           
           if (viewerRef.current) { viewerRef.current.focus(); }
           
-          // Áp dụng cấu hình
           updateBookStyles(newRendition, prefs);
 
-          // Lấy mục lục
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
 
-          // Theo dõi tiến độ
           newRendition.on('relocated', (location) => {
              if (location && location.start) {
                 const percent = newBook.locations.percentageFromCfi(location.start.cfi);
@@ -214,18 +218,15 @@ export default function App() {
     }
   }, [isReady]);
 
-  // --- HÀM CẬP NHẬT GIAO DIỆN ---
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
       rend.themes.fontSize(`${settings.fontSize}%`);
-      
       rend.themes.default({
         'body': { 
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
           'padding': '20px 10px !important'
-          // Đã bỏ font-family để dùng font gốc của sách
         },
         'p': {
           'line-height': `${settings.lineHeight} !important`,
@@ -310,7 +311,6 @@ export default function App() {
     <div className="flex flex-col h-screen w-full overflow-hidden font-sans transition-colors duration-300" style={{ backgroundColor: prefs.bgColor, color: prefs.textColor }}>
       <EyeProtectionOverlay />
       
-      {/* HEADER */}
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
         <div className="flex items-center gap-2">
           <BookOpen size={20} className="text-teal-600" />
@@ -343,7 +343,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* TOC PANEL */}
       {showToc && (
         <div className="absolute top-16 right-4 md:right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white"><span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span><button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
@@ -351,12 +350,10 @@ export default function App() {
         </div>
       )}
 
-      {/* SETTINGS PANEL (ĐÃ BỎ CHỌN FONT) */}
       {showSettings && (
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
-            {/* Phần Font chữ đã bị xóa */}
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
@@ -364,7 +361,6 @@ export default function App() {
         </div>
       )}
 
-      {/* READER AREA */}
       <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
         {!book && !loading && !error && <WelcomeScreen />}
         {loading && (
@@ -389,7 +385,6 @@ export default function App() {
         )}
       </div>
 
-      {/* FOOTER INFO */}
       {book && !loading && !error && (
         <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden">
            <span>Đã đọc</span>
@@ -398,7 +393,6 @@ export default function App() {
         </div>
       )}
 
-      {/* FOOTER MOBILE */}
       <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md mb-8">
          <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronLeft size={24}/><span className="text-[10px]">Trước</span></button>
          <div className="flex gap-4">
@@ -408,7 +402,6 @@ export default function App() {
          <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
       </div>
 
-      {/* FOOTER DESKTOP */}
       <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-500 z-50">
          <span>Ghibli Reader Pro</span>
          <div className="flex items-center gap-2"><span>Tiến độ:</span><span className="font-mono font-bold text-teal-700">{progress}%</span></div>
