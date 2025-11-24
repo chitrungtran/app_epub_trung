@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Hàm load thư viện (Giữ nguyên)
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -62,14 +63,15 @@ export default function App() {
 
       const loadBook = async () => {
         try {
+          // Xóa sạch khung cũ trước khi vẽ
+          if (viewerRef.current) { viewerRef.current.innerHTML = ""; }
+
           addLog("⏳ Đang tải file (Fetch)...");
           const response = await fetch(bookUrl);
           if (!response.ok) throw new Error(`Lỗi tải: ${response.status}`);
           
           const arrayBuffer = await response.arrayBuffer();
           addLog(`📦 Tải xong: ${(arrayBuffer.byteLength / 1024).toFixed(2)} KB`);
-
-          if (window.book) { window.book.destroy(); }
 
           addLog("📖 Đang nạp dữ liệu...");
           const book = window.ePub(arrayBuffer);
@@ -78,27 +80,28 @@ export default function App() {
           await book.ready;
           addLog("✅ Đã phân tích xong cấu trúc.");
 
-          addLog("🎨 Đang vẽ (Chế độ Cuộn Continuous)...");
+          addLog("🎨 Đang vẽ (Chế độ Scrolled-Doc)...");
           
-          // --- CẤU HÌNH CHUẨN CHO CUỘN DỌC ---
+          // CẤU HÌNH CỨU HỘ
           const rendition = book.renderTo(viewerRef.current, {
             width: "100%",
             height: "100%", 
-            flow: "scrolled",       // Hoặc "scrolled-doc"
-            manager: "continuous",  // Bắt buộc phải là continuous mới cuộn được!
+            flow: "scrolled-doc", // Chế độ này dễ chịu nhất cho file lạ
+            manager: "continuous", // Thử lại continuous vì đã nạp ArrayBuffer
             allowScriptedContent: false
+          });
+
+          // ÉP STYLE CỨNG
+          rendition.themes.default({ 
+            "html, body": { "height": "100%", "margin": "0", "padding": "0" },
+            "body": { "color": "#000 !important", "background": "#fff !important", "font-size": "18px !important" },
+            "p": { "font-family": "Arial !important" }
           });
 
           addLog("⚡ Đang hiển thị...");
           await rendition.display();
           
-          // Thêm cái này để ép màu chữ đen cho chắc ăn
-          rendition.themes.default({ 
-            body: { color: "#000 !important", background: "#fff !important" },
-            p: { "font-size": "16px !important" }
-          });
-
-          addLog("🎉 XONG! NẾU KHÔNG THẤY GÌ THÌ VUỐT THỬ NHÉ!");
+          addLog("🎉 XONG! NHÌN XUỐNG DƯỚI COI CÓ CHỮ KHÔNG?");
 
         } catch (err) {
           addLog(`❌ LỖI: ${err.message}`);
@@ -113,23 +116,26 @@ export default function App() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif' }}>
       
-      {/* Nhật ký nhỏ để check */}
+      {/* Nhật ký */}
       <div style={{ 
-        backgroundColor: '#222', color: '#0f0', padding: '5px', 
-        fontSize: '11px', height: '120px', overflowY: 'auto', flexShrink: 0 
+        backgroundColor: '#000', color: '#0f0', padding: '10px', 
+        fontSize: '12px', height: '150px', overflowY: 'auto', flexShrink: 0 
       }}>
+        <h3 style={{margin: 0, color: 'white'}}>NHẬT KÝ DEBUG:</h3>
         {logs.map((log, index) => <div key={index}>{log}</div>)}
       </div>
 
-      {/* KHUNG ĐỌC SÁCH */}
+      {/* KHUNG ĐỌC SÁCH - CÓ VIỀN ĐỎ ĐỂ BIẾT NÓ Ở ĐÂU */}
       <div 
         ref={viewerRef} 
         style={{ 
           flex: 1, 
-          backgroundColor: '#fff', 
+          width: '100%',
+          backgroundColor: '#ffffff', 
           overflowY: 'auto', 
           overflowX: 'hidden',
-          borderTop: '2px solid red' // Viền đỏ để biết khung nằm đâu
+          border: '5px solid red', // Viền đỏ để kiểm tra khung
+          position: 'relative'
         }} 
       />
     </div>
