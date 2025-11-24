@@ -46,6 +46,13 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
+  // --- REFS ĐỂ XỬ LÝ CLICK OUTSIDE ---
+  const settingsRef = useRef(null); // Bảng cài đặt
+  const settingsBtnRef = useRef(null); // Nút cài đặt
+  const tocRef = useRef(null); // Bảng mục lục
+  const tocBtnRef = useRef(null); // Nút mục lục
+
+  // Cấu hình mặc định
   const [prefs, setPrefs] = useState({
     fontSize: 100,
     lineHeight: 1.6,
@@ -62,6 +69,36 @@ export default function App() {
     { label: 'Tối', text: '#e2e8f0', bg: '#1a202c' },
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
   ];
+
+  // --- XỬ LÝ ĐÓNG MENU KHI CLICK RA NGOÀI ---
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // 1. Xử lý bảng Settings
+      if (
+        showSettings && 
+        settingsRef.current && 
+        !settingsRef.current.contains(event.target) && 
+        !settingsBtnRef.current.contains(event.target)
+      ) {
+        setShowSettings(false);
+      }
+
+      // 2. Xử lý bảng Mục lục (TOC)
+      if (
+        showToc && 
+        tocRef.current && 
+        !tocRef.current.contains(event.target) && 
+        !tocBtnRef.current.contains(event.target)
+      ) {
+        setShowToc(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSettings, showToc]);
 
   const getUrlParameter = (name) => {
     name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
@@ -138,17 +175,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [rendition]);
 
-  // --- LOGIC LOAD SÁCH (CÓ GIẢI MÃ ẨN LINK) ---
   useEffect(() => {
     if (isReady && viewerRef.current) {
-      // Lấy link từ URL
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
       if (!urlParam) { setLoading(false); return; }
 
-      // 👉 KIỂM TRA MÃ HÓA: Nếu link KHÔNG bắt đầu bằng 'http', tức là nó đã bị mã hóa
       if (!urlParam.startsWith('http')) {
          try {
-            // Dùng hàm atob để dịch ngược từ Base64 sang link thường
             urlParam = atob(urlParam);
             console.log("Đã giải mã link ẩn:", urlParam);
          } catch (e) {
@@ -318,7 +351,9 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Nút Mục lục có Ref */}
           <button 
+            ref={tocBtnRef}
             onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
             className={`p-2 rounded-full transition-colors ${showToc ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
             title="Mục lục"
@@ -330,7 +365,9 @@ export default function App() {
             {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
           </button>
           
+          {/* Nút Cài đặt có Ref */}
           <button 
+            ref={settingsBtnRef}
             onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} 
             className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
           >
@@ -343,15 +380,17 @@ export default function App() {
         </div>
       </div>
 
+      {/* Bảng Mục lục có Ref */}
       {showToc && (
-        <div className="absolute top-16 right-4 md:right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
+        <div ref={tocRef} className="absolute top-16 right-4 md:right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white"><span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span><button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-2">{toc.length > 0 ? (<ul className="space-y-1">{toc.map((chapter, index) => (<li key={index}><button onClick={() => navigateToChapter(chapter.href)} className="w-full text-left px-4 py-3 text-sm hover:bg-teal-50 hover:text-teal-700 rounded-lg transition-colors border-b border-gray-50 last:border-0">{chapter.label ? chapter.label.trim() : `Chương ${index + 1}`}</button></li>))}</ul>) : (<div className="p-4 text-center text-gray-400 text-sm">Không tìm thấy mục lục</div>)}</div>
         </div>
       )}
 
+      {/* Bảng Cài đặt có Ref */}
       {showSettings && (
-        <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
+        <div ref={settingsRef} className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
