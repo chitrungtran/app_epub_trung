@@ -110,7 +110,6 @@ export default function App() {
     return `https://corsproxy.io/?${encodeURIComponent(url)}`;
   };
 
-  // --- FIX LỖI FULLSCREEN KHÔNG CUỘN ĐƯỢC ---
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(e => console.warn(e));
@@ -121,23 +120,36 @@ export default function App() {
     }
   };
 
-  // Lắng nghe sự kiện thay đổi màn hình để Resize lại sách
+  // --- FIX LỖI MOBILE: BUỘC TẢI LẠI VỊ TRÍ KHI FULLSCREEN ---
   useEffect(() => {
     const handleFullscreenChange = () => {
       const isFull = !!document.fullscreenElement;
       setIsFullscreen(isFull);
       
-      // QUAN TRỌNG: Khi đổi chế độ màn hình, bắt sách tính toán lại kích thước ngay
       if (rendition) {
+         // Đợi 0.5 giây cho màn hình ổn định
          setTimeout(() => {
+            // 1. Ép tính lại kích thước
             rendition.resize();
-            if(viewerRef.current) viewerRef.current.focus(); // Trả lại focus cho khung đọc
-         }, 300); // Đợi 300ms cho hiệu ứng bung màn hình xong hẳn mới resize
+            
+            // 2. QUAN TRỌNG: "Đá đít" bắt nó nhảy lại đúng chỗ cũ để kích hoạt lại việc tải sách
+            try {
+                const location = rendition.currentLocation();
+                if (location && location.start) {
+                    rendition.display(location.start.cfi);
+                }
+            } catch (e) {
+                console.warn("Không thể refresh vị trí:", e);
+            }
+
+            // 3. Focus lại vào khung để cuộn được
+            if(viewerRef.current) viewerRef.current.focus(); 
+         }, 500); 
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [rendition]); // Thêm dependency rendition
+  }, [rendition]);
 
   useEffect(() => {
     if (jszipStatus === 'ready' && epubStatus === 'ready' && !isReady) {
@@ -409,7 +421,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Khu vực đọc sách */}
       <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
         {!book && !loading && !error && <WelcomeScreen />}
         {loading && (
@@ -423,7 +434,6 @@ export default function App() {
         {error ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20"><div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center"><AlertCircle size={48} className="text-red-500 mb-4"/><h3 className="font-bold text-lg text-red-600 mb-2">Có lỗi rồi Trung ơi!</h3><p className="text-gray-600 mb-4 text-center">{error}</p><button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button></div></div>
         ) : (
-          // FIX: Thêm touchStart rỗng để kích hoạt scroll trên iOS và Android
           <div 
             ref={viewerRef} 
             tabIndex={0} 
@@ -468,7 +478,6 @@ export default function App() {
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } 
         ::selection { background: #14b8a6; color: white; } 
         .epub-container iframe { overflow: hidden !important; }
-        /* FIX: Thêm CSS này để mobile cuộn mượt hơn */
         .custom-selection {
            -webkit-overflow-scrolling: touch !important;
            overflow-y: auto !important;
