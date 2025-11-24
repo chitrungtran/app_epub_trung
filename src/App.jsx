@@ -5,6 +5,7 @@ import {
   Eye, X, Loader2, AlignJustify, AlertCircle, List
 } from 'lucide-react';
 
+// --- GIỮ NGUYÊN HÀM LOAD SCRIPT ---
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -46,25 +47,16 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
-  // Cấu hình mặc định
+  // Cấu hình mặc định (Đã bỏ fontFamily)
   const [prefs, setPrefs] = useState({
-    fontFamily: 'Literata',
     fontSize: 100,
     lineHeight: 1.6,
-    letterSpacing: 0,
     paragraphSpacing: 10,
     textColor: '#5f4b32',
     bgColor: '#f6eec7',
     themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
-
-  const fonts = [
-    { name: 'Literata', label: 'Bookerly (Xịn)', type: 'serif' },
-    { name: 'Merriweather', label: 'Báo Chí', type: 'serif' },
-    { name: 'Nunito', label: 'Tròn Trịa', type: 'sans-serif' },
-    { name: 'Patrick Hand', label: 'Viết Tay', type: 'cursive' },
-  ];
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
@@ -125,10 +117,10 @@ export default function App() {
     }
   }, [jszipStatus, epubStatus]);
 
-  // Load font cho App chính
+  // Load font chỉ dùng cho UI bên ngoài (Header, nút bấm) cho đẹp
   useEffect(() => {
     const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;500;700&family=Merriweather:wght@300;400;700&family=Nunito:wght@400;600&family=Patrick+Hand&family=Roboto:wght@400;500&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Patrick+Hand&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, []);
@@ -182,15 +174,7 @@ export default function App() {
             allowScriptedContent: false
           });
 
-          // --- PHẦN QUAN TRỌNG NHẤT: BƠM FONT VÀO TRONG SÁCH ---
-          newRendition.hooks.content.register((contents) => {
-             const link = contents.document.createElement('link');
-             link.rel = 'stylesheet';
-             // Dùng đúng cái link Google Fonts y hệt ở trên
-             link.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;500;700&family=Merriweather:wght@300;400;700&family=Nunito:wght@400;600&family=Patrick+Hand&family=Roboto:wght@400;500&display=swap';
-             contents.document.head.appendChild(link);
-          });
-          // -----------------------------------------------------
+          // Đã bỏ phần tiêm font (hooks) ở đây để không gây lỗi
 
           setRendition(newRendition);
           
@@ -202,7 +186,6 @@ export default function App() {
           
           if (viewerRef.current) { viewerRef.current.focus(); }
           
-          // Cập nhật style ngay lập tức sau khi load
           updateBookStyles(newRendition, prefs);
 
           const navigation = await newBook.loaded.navigation;
@@ -232,27 +215,22 @@ export default function App() {
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
-      // Set font cho toàn bộ theme
-      rend.themes.font(settings.fontFamily);
       rend.themes.fontSize(`${settings.fontSize}%`);
       
-      // Set chi tiết từng thẻ
       rend.themes.default({
         'body': { 
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
-          'font-family': `"${settings.fontFamily}", serif !important`, // Thêm dấu ngoặc kép cho chắc
           'padding': '20px 10px !important'
+          // Đã bỏ font-family ở đây, để sách tự quyết
         },
         'p': {
-          'font-family': `"${settings.fontFamily}", serif !important`,
           'line-height': `${settings.lineHeight} !important`,
           'font-size': `${settings.fontSize}% !important`,
           'color': `${settings.textColor} !important`,
           'text-align': 'justify'
         },
         'h1, h2, h3, h4, h5, h6': {
-          'font-family': `"${settings.fontFamily}", sans-serif !important`,
           'color': `${settings.textColor} !important`
         },
         'a': { 'color': '#0d9488 !important' }
@@ -375,7 +353,6 @@ export default function App() {
         <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
-            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
