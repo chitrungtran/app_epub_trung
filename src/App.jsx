@@ -125,6 +125,7 @@ export default function App() {
     }
   }, [jszipStatus, epubStatus]);
 
+  // Load font cho App chính
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;500;700&family=Merriweather:wght@300;400;700&family=Nunito:wght@400;600&family=Patrick+Hand&family=Roboto:wght@400;500&display=swap';
@@ -181,6 +182,16 @@ export default function App() {
             allowScriptedContent: false
           });
 
+          // --- PHẦN QUAN TRỌNG NHẤT: BƠM FONT VÀO TRONG SÁCH ---
+          newRendition.hooks.content.register((contents) => {
+             const link = contents.document.createElement('link');
+             link.rel = 'stylesheet';
+             // Dùng đúng cái link Google Fonts y hệt ở trên
+             link.href = 'https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;500;700&family=Merriweather:wght@300;400;700&family=Nunito:wght@400;600&family=Patrick+Hand&family=Roboto:wght@400;500&display=swap';
+             contents.document.head.appendChild(link);
+          });
+          // -----------------------------------------------------
+
           setRendition(newRendition);
           
           await newBook.ready;
@@ -190,6 +201,8 @@ export default function App() {
           setLoading(false);
           
           if (viewerRef.current) { viewerRef.current.focus(); }
+          
+          // Cập nhật style ngay lập tức sau khi load
           updateBookStyles(newRendition, prefs);
 
           const navigation = await newBook.loaded.navigation;
@@ -219,21 +232,28 @@ export default function App() {
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
+      // Set font cho toàn bộ theme
       rend.themes.font(settings.fontFamily);
       rend.themes.fontSize(`${settings.fontSize}%`);
+      
+      // Set chi tiết từng thẻ
       rend.themes.default({
         'body': { 
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
-          'font-family': `${settings.fontFamily}, serif !important`,
+          'font-family': `"${settings.fontFamily}", serif !important`, // Thêm dấu ngoặc kép cho chắc
           'padding': '20px 10px !important'
         },
         'p': {
-          'font-family': `${settings.fontFamily}, serif !important`,
+          'font-family': `"${settings.fontFamily}", serif !important`,
           'line-height': `${settings.lineHeight} !important`,
           'font-size': `${settings.fontSize}% !important`,
           'color': `${settings.textColor} !important`,
           'text-align': 'justify'
+        },
+        'h1, h2, h3, h4, h5, h6': {
+          'font-family': `"${settings.fontFamily}", sans-serif !important`,
+          'color': `${settings.textColor} !important`
         },
         'a': { 'color': '#0d9488 !important' }
       });
@@ -259,13 +279,10 @@ export default function App() {
      }
   }
 
-  // --- HÀM NHẢY TỚI CHƯƠNG (TRẢ LẠI NGUYÊN BẢN) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      // Không cắt xén gì nữa, để nguyên href cho nó tự xử
       rendition.display(href).then(() => {
          setShowToc(false);
-         // Không ép cuộn lên đầu nữa, để nó tự tìm anchor
       }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
@@ -417,4 +434,3 @@ export default function App() {
     </div>
   );
 }
-
