@@ -233,23 +233,25 @@ export default function App() {
 
   const nextChapter = () => {
      if (rendition) {
-       rendition.next();
-       if(viewerRef.current) viewerRef.current.scrollTop = 0;
+       rendition.next().then(() => {
+          if(viewerRef.current) viewerRef.current.scrollTop = 0;
+       });
      }
   }
   const prevChapter = () => {
      if (rendition) {
-       rendition.prev();
-       if(viewerRef.current) viewerRef.current.scrollTop = 0;
+       rendition.prev().then(() => {
+          if(viewerRef.current) viewerRef.current.scrollTop = 0;
+       });
      }
   }
 
-  // Hàm nhảy mục lục
+  // --- HÀM NHẢY TỚI CHƯƠNG (FIXED) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      rendition.display(href);
-      setShowToc(false);
-      if(viewerRef.current) viewerRef.current.scrollTop = 0;
+      setShowToc(false); // Tắt menu
+      // Chỉ cần gọi display(href), tự nó sẽ nhảy đúng chỗ
+      rendition.display(href).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
 
