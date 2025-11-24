@@ -70,14 +70,12 @@ export default function App() {
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
   ];
 
-  // --- XỬ LÝ ĐÓNG MENU KHI CLICK RA NGOÀI (TRÊN WEB CHÍNH) ---
+  // --- XỬ LÝ ĐÓNG MENU KHI CLICK RA NGOÀI ---
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // 1. Xử lý bảng Settings
       if (showSettings && settingsRef.current && !settingsRef.current.contains(event.target) && !settingsBtnRef.current.contains(event.target)) {
         setShowSettings(false);
       }
-      // 2. Xử lý bảng Mục lục (TOC)
       if (showToc && tocRef.current && !tocRef.current.contains(event.target) && !tocBtnRef.current.contains(event.target)) {
         setShowToc(false);
       }
@@ -168,12 +166,13 @@ export default function App() {
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
       if (!urlParam) { setLoading(false); return; }
 
+      // --- GIẢI MÃ LINK ẨN (Đã xóa console.log để đỡ lộ) ---
       if (!urlParam.startsWith('http')) {
          try {
             urlParam = atob(urlParam);
-            console.log("Đã giải mã link ẩn:", urlParam);
+            // console.log("Đã giải mã link ẩn:", urlParam); <-- Đã xóa dòng này cho kín
          } catch (e) {
-            console.warn("Link không phải mã hóa Base64, kệ nó.");
+            // Kệ nó nếu không phải base64
          }
       }
 
@@ -205,8 +204,7 @@ export default function App() {
 
           setRendition(newRendition);
           
-          // --- MẤU CHỐT Ở ĐÂY: Bắt sự kiện Click trong sách ---
-          // Khi người dùng bấm vào nội dung sách -> Tắt hết menu
+          // Bắt sự kiện click trong sách để đóng menu
           newRendition.on('click', () => {
              setShowSettings(false);
              setShowToc(false);
@@ -215,7 +213,6 @@ export default function App() {
              setShowSettings(false);
              setShowToc(false);
           });
-          // ----------------------------------------------------
           
           await newBook.ready;
           const startCfi = newBook.spine.get(0).href;
@@ -378,11 +375,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* Bảng Mục lục có Ref và onMouseLeave */}
+      {/* Bảng Mục lục */}
       {showToc && (
         <div 
           ref={tocRef} 
-          onMouseLeave={() => setShowToc(false)} // Rời chuột là tắt ngay
+          onMouseLeave={() => setShowToc(false)} 
           className="absolute top-16 right-4 md:right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200"
         >
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white"><span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span><button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
@@ -390,11 +387,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Bảng Cài đặt có Ref và onMouseLeave */}
+      {/* Bảng Cài đặt */}
       {showSettings && (
         <div 
           ref={settingsRef} 
-          onMouseLeave={() => setShowSettings(false)} // Rời chuột là tắt ngay
+          onMouseLeave={() => setShowSettings(false)} 
           className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200"
         >
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
@@ -406,6 +403,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Khu vực đọc sách */}
       <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
         {!book && !loading && !error && <WelcomeScreen />}
         {loading && (
@@ -430,6 +428,7 @@ export default function App() {
         )}
       </div>
 
+      {/* Footer */}
       {book && !loading && !error && (
         <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden">
            <span>Đã đọc</span>
