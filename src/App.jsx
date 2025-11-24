@@ -76,23 +76,25 @@ export default function App() {
           window.book = book;
 
           await book.ready;
-          addLog("✅ Đã phân tích xong cấu trúc sách.");
+          addLog("✅ Đã phân tích xong cấu trúc.");
 
-          addLog("🎨 Đang vẽ (Chế độ Cuộn Dọc)...");
+          addLog("🎨 Đang vẽ (Chế độ Load Từng Đoạn)...");
           
-          // CẤU HÌNH CUỘN DỌC
+          // CẤU HÌNH FIX LỖI TREO
           const rendition = book.renderTo(viewerRef.current, {
             width: "100%",
             height: "100%",
-            flow: "scrolled-doc", // Chế độ cuộn
-            manager: "continuous", // Load liên tục
+            flow: "scrolled-doc", // Vẫn giữ cuộn dọc
+            manager: "default",   // QUAN TRỌNG: Đổi từ 'continuous' sang 'default' để tránh treo
             allowScriptedContent: false
           });
 
-          addLog("⚡ Đang hiển thị...");
-          await rendition.display();
+          addLog("⚡ Đang kích hoạt hiển thị (Fire & Forget)...");
           
-          addLog("🎉 XONG! VUỐT MÀ ĐỌC ĐI TRUNG ƠI!");
+          // KHÔNG DÙNG AWAIT NỮA - Chạy luôn không cần đợi
+          rendition.display();
+          
+          addLog("🎉 ĐÃ GỬI LỆNH HIỂN THỊ! (Vuốt thử xem)");
 
         } catch (err) {
           addLog(`❌ LỖI: ${err.message}`);
@@ -107,7 +109,7 @@ export default function App() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif' }}>
       
-      {/* Nhật ký nhỏ xíu ở trên để debug */}
+      {/* Nhật ký nhỏ xíu */}
       <div style={{ 
         backgroundColor: '#222', color: '#0f0', padding: '5px', 
         fontSize: '11px', height: '100px', overflowY: 'auto', flexShrink: 0 
@@ -115,13 +117,13 @@ export default function App() {
         {logs.map((log, index) => <div key={index}>{log}</div>)}
       </div>
 
-      {/* KHUNG ĐỌC SÁCH (Cuộn tự do) */}
+      {/* KHUNG ĐỌC SÁCH */}
       <div 
         ref={viewerRef} 
         style={{ 
           flex: 1, 
           backgroundColor: '#fff', 
-          overflowY: 'auto', // Cho phép cuộn dọc
+          overflowY: 'auto', 
           overflowX: 'hidden'
         }} 
       />
