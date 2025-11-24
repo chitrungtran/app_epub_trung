@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 
-// Hàm load thư viện
 const useScript = (src) => {
   const [status, setStatus] = useState(src ? 'loading' : 'idle');
   useEffect(() => {
@@ -28,7 +27,7 @@ export default function App() {
   const epubStatus = useScript('https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js');
 
   const [logs, setLogs] = useState([]);
-  const [rawChapters, setRawChapters] = useState([]); // Chứa dữ liệu thô
+  const [extractedContent, setExtractedContent] = useState([]); 
 
   const addLog = (msg) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
@@ -54,7 +53,7 @@ export default function App() {
 
   useEffect(() => {
     if (jszipStatus === 'ready' && epubStatus === 'ready') {
-      addLog("✅ Thư viện sẵn sàng. Bắt đầu chế độ MỔ XẺ...");
+      addLog("✅ Thư viện sẵn sàng. Bắt đầu MỔ XẺ V2 (Tìm cả Ảnh)...");
       const urlParam = getUrlParameter('url');
       if (!urlParam) { addLog("⚠️ Thiếu link sách."); return; }
 
@@ -63,54 +62,59 @@ export default function App() {
 
       const extractBookData = async () => {
         try {
-          addLog("⏳ Đang tải file (Fetch)...");
+          addLog("⏳ Đang tải file...");
           const response = await fetch(bookUrl);
           if (!response.ok) throw new Error(`Lỗi tải: ${response.status}`);
           
           const arrayBuffer = await response.arrayBuffer();
           addLog(`📦 Tải xong: ${(arrayBuffer.byteLength / 1024).toFixed(2)} KB`);
 
-          addLog("📖 Đang phân tích cấu trúc...");
+          addLog("📖 Đang phân tích...");
           const book = window.ePub(arrayBuffer);
           await book.ready;
           
-          addLog(`📚 Tìm thấy ${book.spine.length} chương/mục.`);
-          addLog("⛏️ Đang đào dữ liệu (Text Mining)...");
+          const spineCount = book.spine.length;
+          addLog(`📚 Có ${spineCount} chương. Bắt đầu quét...`);
 
-          const chaptersData = [];
+          const contentList = [];
           
-          // Lặp qua từng chương để lấy chữ (Giới hạn 20 chương đầu cho đỡ lag)
-          const limit = Math.min(book.spine.length, 50); 
-          
-          for (let i = 0; i < limit; i++) {
+          // Quét tối đa 20 chương đầu
+          for (let i = 0; i < Math.min(spineCount, 20); i++) {
+            addLog(`...Đang đọc chương ${i + 1}/${spineCount}`);
             const item = book.spine.get(i);
+            
             if (item) {
               try {
-                // Load nội dung thô của chương đó
-                // Lưu ý: book.load.bind(book) là chìa khóa để giải mã
+                // Load document của chương đó
                 const doc = await item.load(book.load.bind(book));
                 
-                // Lấy chữ thuần túy (innerText)
-                const textContent = doc.body.innerText || doc.body.textContent;
+                // 1. Lấy chữ
+                const text = (doc.body.innerText || "").trim();
                 
-                if (textContent.trim().length > 0) {
-                   chaptersData.push({
+                // 2. Lấy ảnh
+                const images = Array.from(doc.body.querySelectorAll('img')).map(img => img.src);
+
+                if (text.length > 0 || images.length > 0) {
+                   contentList.push({
                      id: i,
-                     text: textContent
+                     text: text,
+                     images: images
                    });
-                   addLog(`✅ Đã lấy xong chương ${i + 1}`);
+                   addLog(`✅ Chương ${i+1}: Tìm thấy ${text.length} ký tự và ${images.length} ảnh.`);
+                } else {
+                   addLog(`⚠️ Chương ${i+1}: Trống rỗng?`);
                 }
               } catch (e) {
-                addLog(`⚠️ Lỗi chương ${i}: ${e.message}`);
+                addLog(`❌ Lỗi đọc chương ${i+1}: ${e.message}`);
               }
             }
           }
 
-          if (chaptersData.length === 0) {
-             addLog("❌ KHÔNG LẤY ĐƯỢC CHỮ NÀO! (File mã hóa hoặc trống?)");
+          if (contentList.length === 0) {
+             addLog("💀 VÔ VỌNG: Không tìm thấy chữ hay ảnh nào cả!");
           } else {
-             setRawChapters(chaptersData);
-             addLog("🎉 XONG! DỮ LIỆU ĐANG HIỆN BÊN DƯỚI 👇");
+             setExtractedContent(contentList);
+             addLog("🎉 XONG! Kéo xuống dưới xem hàng!");
           }
 
         } catch (err) {
@@ -124,31 +128,42 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1 style={{borderBottom: '2px solid teal'}}>🕵️‍♂️ Chế Độ Data Miner (Lấy Dữ Liệu Thô)</h1>
+      <h1 style={{borderBottom: '2px solid teal'}}>🕵️‍♂️ Máy Soi Nội Dung (Text + Image)</h1>
       
-      {/* KHUNG LOG */}
+      {/* LOGS */}
       <div style={{ 
-        backgroundColor: '#333', color: '#0f0', padding: '10px', 
+        backgroundColor: '#222', color: '#0f0', padding: '10px', 
         marginBottom: '20px', borderRadius: '8px',
-        fontFamily: 'monospace', fontSize: '12px', maxHeight: '150px', overflowY: 'auto'
+        fontFamily: 'monospace', fontSize: '12px', maxHeight: '200px', overflowY: 'auto'
       }}>
         {logs.map((log, index) => <div key={index}>{log}</div>)}
       </div>
 
-      {/* KHUNG HIỂN THỊ CHỮ THÔ */}
-      <div style={{ backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px', border: '1px solid #ddd' }}>
-        {rawChapters.length === 0 ? (
-          <p style={{color: 'gray', fontStyle: 'italic'}}>Chưa có dữ liệu...</p>
-        ) : (
-          rawChapters.map((chap) => (
-            <div key={chap.id} style={{ marginBottom: '30px', borderBottom: '1px dashed #ccc', paddingBottom: '20px' }}>
-              <h3 style={{color: 'teal'}}>--- Phần {chap.id + 1} ---</h3>
-              <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: '1.6', color: '#333' }}>
-                {chap.text}
-              </pre>
-            </div>
-          ))
-        )}
+      {/* HIỂN THỊ NỘI DUNG */}
+      <div style={{ backgroundColor: '#fff', border: '1px solid #ccc', padding: '10px' }}>
+        {extractedContent.map((chap) => (
+          <div key={chap.id} style={{ marginBottom: '40px', borderBottom: '4px solid #eee', paddingBottom: '20px' }}>
+            <h3 style={{color: 'blue', backgroundColor: '#eee', padding: '5px'}}>Chương {chap.id + 1}</h3>
+            
+            {/* Hiển thị chữ nếu có */}
+            {chap.text && (
+              <div style={{whiteSpace: 'pre-wrap', marginBottom: '15px', fontSize: '16px', lineHeight: '1.6'}}>
+                {chap.text.substring(0, 500)}... 
+                {chap.text.length > 500 && <span style={{color:'gray'}}>(còn nữa)</span>}
+              </div>
+            )}
+
+            {/* Hiển thị ảnh nếu có */}
+            {chap.images.length > 0 && (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                <p style={{fontWeight: 'bold', color: 'red'}}>👇 Tìm thấy {chap.images.length} ảnh:</p>
+                {chap.images.map((src, idx) => (
+                  <img key={idx} src={src} alt={`img-${idx}`} style={{maxWidth: '100%', border: '2px solid black'}} />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
