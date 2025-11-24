@@ -78,23 +78,27 @@ export default function App() {
           await book.ready;
           addLog("✅ Đã phân tích xong cấu trúc.");
 
-          addLog("🎨 Đang vẽ (Chế độ Load Từng Đoạn)...");
+          addLog("🎨 Đang vẽ (Chế độ Cuộn Continuous)...");
           
-          // CẤU HÌNH FIX LỖI TREO
+          // --- CẤU HÌNH CHUẨN CHO CUỘN DỌC ---
           const rendition = book.renderTo(viewerRef.current, {
             width: "100%",
-            height: "100%",
-            flow: "scrolled-doc", // Vẫn giữ cuộn dọc
-            manager: "default",   // QUAN TRỌNG: Đổi từ 'continuous' sang 'default' để tránh treo
+            height: "100%", 
+            flow: "scrolled",       // Hoặc "scrolled-doc"
+            manager: "continuous",  // Bắt buộc phải là continuous mới cuộn được!
             allowScriptedContent: false
           });
 
-          addLog("⚡ Đang kích hoạt hiển thị (Fire & Forget)...");
+          addLog("⚡ Đang hiển thị...");
+          await rendition.display();
           
-          // KHÔNG DÙNG AWAIT NỮA - Chạy luôn không cần đợi
-          rendition.display();
-          
-          addLog("🎉 ĐÃ GỬI LỆNH HIỂN THỊ! (Vuốt thử xem)");
+          // Thêm cái này để ép màu chữ đen cho chắc ăn
+          rendition.themes.default({ 
+            body: { color: "#000 !important", background: "#fff !important" },
+            p: { "font-size": "16px !important" }
+          });
+
+          addLog("🎉 XONG! NẾU KHÔNG THẤY GÌ THÌ VUỐT THỬ NHÉ!");
 
         } catch (err) {
           addLog(`❌ LỖI: ${err.message}`);
@@ -109,10 +113,10 @@ export default function App() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', fontFamily: 'sans-serif' }}>
       
-      {/* Nhật ký nhỏ xíu */}
+      {/* Nhật ký nhỏ để check */}
       <div style={{ 
         backgroundColor: '#222', color: '#0f0', padding: '5px', 
-        fontSize: '11px', height: '100px', overflowY: 'auto', flexShrink: 0 
+        fontSize: '11px', height: '120px', overflowY: 'auto', flexShrink: 0 
       }}>
         {logs.map((log, index) => <div key={index}>{log}</div>)}
       </div>
@@ -124,7 +128,8 @@ export default function App() {
           flex: 1, 
           backgroundColor: '#fff', 
           overflowY: 'auto', 
-          overflowX: 'hidden'
+          overflowX: 'hidden',
+          borderTop: '2px solid red' // Viền đỏ để biết khung nằm đâu
         }} 
       />
     </div>
