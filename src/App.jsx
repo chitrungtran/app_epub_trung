@@ -231,7 +231,6 @@ export default function App() {
 
   const nextChapter = () => {
      if (rendition) {
-       // Nhảy sang chương tiếp theo và reset cuộn lên đầu
        rendition.next().then(() => {
           if(viewerRef.current) viewerRef.current.scrollTop = 0;
        });
@@ -245,17 +244,14 @@ export default function App() {
      }
   }
 
-  // --- HÀM NHẢY TỚI CHƯƠNG (ĐÃ SỬA LỖI NHẢY GIỮA CHƯƠNG) ---
+  // --- HÀM NHẢY TỚI CHƯƠNG (ĐÃ SỬA LẠI CHUẨN) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      // QUAN TRỌNG: Cắt bỏ phần sau dấu # để ép nó về đầu chương
-      const cleanHref = href.split('#')[0]; 
-      console.log("Navigating to:", cleanHref); // Log để kiểm tra
-
-      rendition.display(cleanHref).then(() => {
+      console.log("Navigating to:", href);
+      // KHÔNG CẮT ĐUÔI NỮA - Để nguyên cho nó tự tìm đúng chỗ (kể cả giữa trang)
+      rendition.display(href).then(() => {
          setShowToc(false);
-         // Ép cuộn lên đầu cho chắc cú
-         if(viewerRef.current) viewerRef.current.scrollTop = 0;
+         // Bỏ luôn lệnh cuộn lên đầu, để nó tự định vị theo link
       }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
@@ -312,7 +308,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
           
-          {/* NÚT MỤC LỤC */}
+          {/* 1. NÚT MỤC LỤC */}
           <button 
             onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
             className={`p-2 rounded-full transition-colors ${showToc ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
@@ -321,12 +317,12 @@ export default function App() {
             <List size={20} />
           </button>
 
-          {/* NÚT THEME */}
+          {/* 2. NÚT THEME */}
           <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
             {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
           </button>
           
-          {/* NÚT CÀI ĐẶT */}
+          {/* 3. NÚT CÀI ĐẶT */}
           <button 
             onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} 
             className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
@@ -334,7 +330,7 @@ export default function App() {
             <Settings size={20} />
           </button>
           
-          {/* NÚT FULLSCREEN */}
+          {/* 4. NÚT FULLSCREEN */}
           <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors hidden sm:block">
             {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
           </button>
