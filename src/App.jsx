@@ -42,6 +42,9 @@ export default function App() {
   const [showToc, setShowToc] = useState(false);
   const [toc, setToc] = useState([]);
   
+  // --- THÊM STATE CHO TIẾN ĐỘ ---
+  const [progress, setProgress] = useState(0); 
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
@@ -124,7 +127,6 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // --- PHÍM TẮT ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
@@ -176,8 +178,14 @@ export default function App() {
 
           setRendition(newRendition);
           
-          // Ép hiển thị chương đầu
           await newBook.ready;
+          
+          // --- TẠO DỮ LIỆU VỊ TRÍ ĐỂ TÍNH % (CHẠY NGẦM) ---
+          // Cái này cần thiết để tính % chính xác
+          newBook.locations.generate(1000).then(() => {
+             console.log("Đã tạo xong bản đồ vị trí sách!");
+          }).catch(e => console.warn("Lỗi tạo vị trí:", e));
+
           const startCfi = newBook.spine.get(0).href;
           await newRendition.display(startCfi);
           
@@ -186,9 +194,19 @@ export default function App() {
           if (viewerRef.current) { viewerRef.current.focus(); }
           updateBookStyles(newRendition, prefs);
 
-          // Lấy mục lục
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
+
+          // --- LẮNG NGHE SỰ KIỆN CUỘN ĐỂ CẬP NHẬT % ---
+          newRendition.on('relocated', (location) => {
+             if (location && location.start) {
+                // Tính phần trăm
+                const percent = newBook.locations.percentageFromCfi(location.start.cfi);
+                // Cập nhật thanh trạng thái (Làm tròn số)
+                const p = Math.floor(percent * 100);
+                setProgress(isNaN(p) ? 0 : p);
+             }
+          });
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -244,181 +262,15 @@ export default function App() {
      }
   }
 
-  // --- HÀM NHẢY TỚI CHƯƠNG (ĐÃ SỬA LẠI CHUẨN) ---
   const navigateToChapter = (href) => {
     if (rendition) {
-      console.log("Navigating to:", href);
-      // KHÔNG CẮT ĐUÔI NỮA - Để nguyên cho nó tự tìm đúng chỗ (kể cả giữa trang)
-      rendition.display(href).then(() => {
+      const cleanHref = href.split('#')[0]; 
+      rendition.display(cleanHref).then(() => {
          setShowToc(false);
-         // Bỏ luôn lệnh cuộn lên đầu, để nó tự định vị theo link
+         if(viewerRef.current) viewerRef.current.scrollTop = 0;
       }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
 
   const toggleTheme = () => {
-    if (prefs.themeMode === 'dark') {
-      applyColorTheme(colorThemes[1]); 
-    } else {
-      applyColorTheme(colorThemes[3]); 
-    }
-  }
-
-  const applyColorTheme = (theme) => {
-    const isDark = theme.bg === '#000000' || theme.bg === '#1a202c';
-    setPrefs(prev => ({
-      ...prev,
-      textColor: theme.text,
-      bgColor: theme.bg,
-      themeMode: isDark ? 'dark' : 'light'
-    }));
-  };
-
-  const EyeProtectionOverlay = () => (
-    <div className="fixed inset-0 pointer-events-none z-[9999] mix-blend-multiply" style={{ backgroundColor: '#ffbf00', opacity: eyeCareLevel / 100 * 0.4 }} />
-  );
-
-  const WelcomeScreen = () => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
-      <div className="bg-white/90 p-8 rounded-3xl shadow-xl max-w-lg border-2 border-[#5f4b32]/10 backdrop-blur-sm">
-        <div className="mb-4 bg-teal-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto text-teal-700">
-          <BookOpen size={32} />
-        </div>
-        <h1 className="text-2xl font-bold text-[#5f4b32] mb-3 font-serif">Thư Viện Ghibli</h1>
-        <p className="text-gray-600 mb-6">Chưa có sách nào được chọn cả Trung ơi!</p>
-      </div>
-    </div>
-  );
-
-  if (!isReady) return (
-    <div className="flex flex-col h-screen w-full items-center justify-center bg-[#f6eec7] gap-4">
-      <Loader2 className="h-12 w-12 animate-spin text-[#5f4b32]" />
-      <p className="text-[#5f4b32] font-medium animate-pulse">Đang chuẩn bị thư viện...</p>
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col h-screen w-full overflow-hidden font-sans transition-colors duration-300" style={{ backgroundColor: prefs.bgColor, color: prefs.textColor }}>
-      <EyeProtectionOverlay />
-      
-      <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
-        <div className="flex items-center gap-2">
-          <BookOpen size={20} className="text-teal-600" />
-          <span className="font-bold text-lg hidden sm:block font-serif">Ghibli Reader Pro</span>
-        </div>
-        <div className="flex items-center gap-2">
-          
-          {/* 1. NÚT MỤC LỤC */}
-          <button 
-            onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
-            className={`p-2 rounded-full transition-colors ${showToc ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
-            title="Mục lục"
-          >
-            <List size={20} />
-          </button>
-
-          {/* 2. NÚT THEME */}
-          <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
-            {prefs.themeMode === 'dark' ? <Sun size={20}/> : <Moon size={20}/>}
-          </button>
-          
-          {/* 3. NÚT CÀI ĐẶT */}
-          <button 
-            onClick={() => { setShowSettings(!showSettings); setShowToc(false); }} 
-            className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}
-          >
-            <Settings size={20} />
-          </button>
-          
-          {/* 4. NÚT FULLSCREEN */}
-          <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors hidden sm:block">
-            {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
-          </button>
-        </div>
-      </div>
-
-      {/* MENU MỤC LỤC */}
-      {showToc && (
-        <div className="absolute top-16 right-20 w-72 max-h-[70vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
-           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl sticky top-0 z-10 bg-white">
-             <span className="font-bold text-sm uppercase text-gray-500 flex items-center gap-2"><List size={16}/> Mục lục</span>
-             <button onClick={() => setShowToc(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button>
-           </div>
-           <div className="p-2">
-             {toc.length > 0 ? (
-               <ul className="space-y-1">
-                 {toc.map((chapter, index) => (
-                   <li key={index}>
-                     <button 
-                       onClick={() => navigateToChapter(chapter.href)}
-                       className="w-full text-left px-4 py-3 text-sm hover:bg-teal-50 hover:text-teal-700 rounded-lg transition-colors border-b border-gray-50 last:border-0"
-                     >
-                       {chapter.label ? chapter.label.trim() : `Chương ${index + 1}`}
-                     </button>
-                   </li>
-                 ))}
-               </ul>
-             ) : (
-               <div className="p-4 text-center text-gray-400 text-sm">Không tìm thấy mục lục</div>
-             )}
-           </div>
-        </div>
-      )}
-
-      {/* SETTINGS PANEL */}
-      {showSettings && (
-        <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
-           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
-           <div className="p-5 space-y-6">
-            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
-            <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
-            <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
-           </div>
-        </div>
-      )}
-
-      {/* READER AREA */}
-      <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
-        {!book && !loading && !error && <WelcomeScreen />}
-        {loading && (
-           <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/50 backdrop-blur-sm">
-             <div className="flex flex-col items-center animate-pulse">
-               <Loader2 className="h-10 w-10 text-teal-600 animate-spin mb-3" />
-               <p className="text-sm font-bold text-teal-800">{loadingStep}</p>
-             </div>
-           </div>
-        )}
-        {error ? (
-          <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20">
-             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center">
-               <AlertCircle size={48} className="text-red-500 mb-4"/>
-               <h3 className="font-bold text-lg text-red-600 mb-2">Có lỗi rồi Trung ơi!</h3>
-               <p className="text-gray-600 mb-4 text-center">{error}</p>
-               <button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button>
-             </div>
-          </div>
-        ) : (
-          <div ref={viewerRef} tabIndex={0} className="h-full w-full relative z-0 custom-selection overflow-y-auto outline-none" />
-        )}
-        
-        {book && !loading && !error && (
-          <>
-            <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
-            <button onClick={nextChapter} className="hidden md:flex absolute right-4 bottom-6 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương sau"><ChevronRight size={24} className="group-active:translate-x-1 transition-transform" /></button>
-          </>
-        )}
-      </div>
-
-      <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
-         <button onClick={prevChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronLeft size={24}/><span className="text-[10px]">Trước</span></button>
-         <div className="flex gap-4">
-            <button onClick={() => setShowToc(!showToc)}><List size={20} className="opacity-60"/></button>
-            <button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button>
-         </div>
-         <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
-      </div>
-
-      <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
-    </div>
-  );
-}
+    if (prefs.themeMode === '
