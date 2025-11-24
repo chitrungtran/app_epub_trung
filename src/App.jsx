@@ -166,13 +166,13 @@ export default function App() {
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
       if (!urlParam) { setLoading(false); return; }
 
-      // --- GIẢI MÃ LINK ẨN (Đã xóa console.log để đỡ lộ) ---
+      // --- GIẢI MÃ LINK ẨN (Đã bịt miệng console.log) ---
       if (!urlParam.startsWith('http')) {
          try {
             urlParam = atob(urlParam);
-            // console.log("Đã giải mã link ẩn:", urlParam); <-- Đã xóa dòng này cho kín
+            // Im lặng là vàng, không log ra nữa
          } catch (e) {
-            // Kệ nó nếu không phải base64
+            // Kệ nó
          }
       }
 
