@@ -250,4 +250,79 @@ export default function App() {
     <div className="flex flex-col h-screen w-full overflow-hidden font-sans transition-colors duration-300" style={{ backgroundColor: prefs.bgColor, color: prefs.textColor }}>
       <EyeProtectionOverlay />
       
-      {/* HEADER
+      {/* HEADER */}
+      <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
+        <div className="flex items-center gap-2">
+          <BookOpen size={20} className="text-teal-600" />
+          <span className="font-bold text-lg hidden sm:block font-serif">Ghibli Reader Pro</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => applyColorTheme(prefs.themeMode === 'light' ? colorThemes[3] : colorThemes[0])} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors">
+            {prefs.themeMode === 'light' ? <Moon size={20}/> : <Sun size={20}/>}
+          </button>
+          <button onClick={() => setShowSettings(!showSettings)} className={`p-2 rounded-full transition-colors ${showSettings ? 'bg-teal-100 text-teal-800' : 'hover:bg-gray-400/20'}`}>
+            <Settings size={20} />
+          </button>
+          <button onClick={toggleFullscreen} className="p-2 rounded-full hover:bg-gray-400/20 transition-colors hidden sm:block">
+            {isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}
+          </button>
+        </div>
+      </div>
+
+      {/* SETTINGS PANEL */}
+      {showSettings && (
+        <div className="absolute top-16 right-4 w-80 max-h-[80vh] overflow-y-auto bg-white shadow-2xl rounded-2xl border border-gray-200 z-50 text-slate-800 animate-in fade-in zoom-in-95 duration-200">
+           <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
+           <div className="p-5 space-y-6">
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Type size={16}/> <span>Phông chữ</span></div><div className="grid grid-cols-2 gap-2">{fonts.map(f => (<button key={f.name} onClick={() => setPrefs({...prefs, fontFamily: f.name})} className={`px-3 py-2 text-sm border rounded-lg text-left transition-all ${prefs.fontFamily === f.name ? 'border-teal-500 bg-teal-50 text-teal-700 ring-1 ring-teal-500' : 'hover:bg-gray-50'}`} style={{ fontFamily: f.name }}>{f.label}</button>))}</div></div>
+            <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
+            <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
+            <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6">{eyeCareLevel}%</span></div></div>
+           </div>
+        </div>
+      )}
+
+      {/* READER AREA */}
+      <div className="flex-1 relative w-full max-w-4xl mx-auto shadow-2xl my-0 md:my-4 md:rounded-lg overflow-hidden transition-all duration-300">
+        {!book && !loading && !error && <WelcomeScreen />}
+        {loading && (
+           <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/50 backdrop-blur-sm">
+             <div className="flex flex-col items-center animate-pulse">
+               <Loader2 className="h-10 w-10 text-teal-600 animate-spin mb-3" />
+               <p className="text-sm font-bold text-teal-800">{loadingStep}</p>
+             </div>
+           </div>
+        )}
+        {error ? (
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center z-20">
+             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md border border-red-100 flex flex-col items-center">
+               <AlertCircle size={48} className="text-red-500 mb-4"/>
+               <h3 className="font-bold text-lg text-red-600 mb-2">Có lỗi rồi Trung ơi!</h3>
+               <p className="text-gray-600 mb-4 text-center">{error}</p>
+               <button onClick={() => window.location.reload()} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Thử tải lại (F5)</button>
+             </div>
+          </div>
+        ) : (
+          <div ref={viewerRef} className="h-full w-full relative z-0 custom-selection overflow-y-auto" />
+        )}
+        
+        {/* Nút cuộn nhanh (thay cho lật trang) */}
+        {book && !loading && !error && (
+          <>
+            <button onClick={scrollUp} className="hidden md:flex absolute right-4 bottom-20 p-3 bg-black/10 hover:bg-black/20 rounded-full transition-all z-10"><ChevronLeft size={24} className="rotate-90" /></button>
+            <button onClick={scrollDown} className="hidden md:flex absolute right-4 bottom-6 p-3 bg-black/10 hover:bg-black/20 rounded-full transition-all z-10"><ChevronRight size={24} className="rotate-90" /></button>
+          </>
+        )}
+      </div>
+
+      {/* FOOTER MOBILE */}
+      <div className="md:hidden h-14 border-t border-gray-400/20 flex items-center justify-between px-6 z-40 bg-inherit backdrop-blur-md">
+         <button onClick={scrollUp} className="p-3 active:scale-95 opacity-70"><ChevronLeft size={24} className="rotate-90"/></button>
+         <div className="flex gap-4"><button onClick={() => setShowSettings(!showSettings)}><Settings size={20} className="opacity-60"/></button><button onClick={() => setEyeCareLevel(val => val > 0 ? 0 : 50)}><Eye size={20} className={eyeCareLevel > 0 ? "text-orange-500" : "opacity-60"}/></button></div>
+         <button onClick={scrollDown} className="p-3 active:scale-95 opacity-70"><ChevronRight size={24} className="rotate-90"/></button>
+      </div>
+
+      <style>{`.custom-scroll::-webkit-scrollbar { height: 4px; } .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } ::selection { background: #14b8a6; color: white; } .epub-container iframe { overflow: hidden !important; }`}</style>
+    </div>
+  );
+}
