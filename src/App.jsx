@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, ChevronLeft, ChevronRight, Settings, 
   Maximize, Minimize, Sun, Moon, 
-  Eye, X, Loader2, AlignJustify, AlertCircle, List, Type
+  Eye, X, Loader2, AlignJustify, AlertCircle, List, Type, Move
 } from 'lucide-react';
 
 const useScript = (src) => {
@@ -37,6 +37,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState(null);
+  
+  const [bookTitle, setBookTitle] = useState(''); 
   
   const [showSettings, setShowSettings] = useState(false);
   const [showToc, setShowToc] = useState(false);
@@ -120,7 +122,6 @@ export default function App() {
     }
   };
 
-  // Xử lý thay đổi fullscreen (chủ yếu cho PC)
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -151,16 +152,14 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
-      if (e.key === 'ArrowDown') {
-        if (viewerRef.current) viewerRef.current.scrollBy({ top: 100, behavior: 'smooth' });
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
         e.preventDefault();
+        nextChapter(); 
       }
-      if (e.key === 'ArrowUp') {
-        if (viewerRef.current) viewerRef.current.scrollBy({ top: -100, behavior: 'smooth' });
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
         e.preventDefault();
+        prevChapter(); 
       }
-      if (e.key === 'ArrowRight') nextChapter();
-      if (e.key === 'ArrowLeft') prevChapter();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -169,9 +168,14 @@ export default function App() {
   useEffect(() => {
     if (isReady && viewerRef.current) {
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
-      if (!urlParam) { setLoading(false); return; }
+      
+      if (!urlParam) { 
+        setLoading(false); 
+        setBookTitle(''); 
+        document.title = 'Ghibli Reader';
+        return; 
+      }
 
-      // --- VẪN GIỮ NGUYÊN MÃ HÓA LINK NHÉ ---
       if (!urlParam.startsWith('http')) {
          try {
             urlParam = atob(urlParam);
@@ -185,6 +189,7 @@ export default function App() {
         try {
           setLoading(true);
           setError(null);
+          setBookTitle(''); 
           setLoadingStep('Đang tải sách...');
           
           const response = await fetch(bookUrl);
@@ -206,7 +211,6 @@ export default function App() {
 
           setRendition(newRendition);
           
-          // Đóng menu khi click vào sách
           newRendition.on('click', () => {
              setShowSettings(false);
              setShowToc(false);
@@ -217,6 +221,13 @@ export default function App() {
           });
           
           await newBook.ready;
+
+          // Lấy tên sách
+          const meta = newBook.package.metadata;
+          const title = meta.title || ''; 
+          setBookTitle(title); 
+          if (title) document.title = title; 
+
           const startCfi = newBook.spine.get(0).href;
           await newRendition.display(startCfi);
           
@@ -278,17 +289,22 @@ export default function App() {
   }, [prefs, rendition]);
 
   const nextChapter = () => {
-     if (rendition) {
-       rendition.next().then(() => {
-          if(viewerRef.current) viewerRef.current.scrollTop = 0;
-       });
+     const node = viewerRef.current;
+     if (!node || !rendition) return;
+     if (node.scrollTop + node.clientHeight < node.scrollHeight - 20) {
+        node.scrollBy({ top: node.clientHeight * 0.8, behavior: 'smooth' }); 
+     } else {
+        rendition.next().then(() => { node.scrollTop = 0; }).catch(err => console.warn(err));
      }
   }
+
   const prevChapter = () => {
-     if (rendition) {
-       rendition.prev().then(() => {
-          if(viewerRef.current) viewerRef.current.scrollTop = 0;
-       });
+     const node = viewerRef.current;
+     if (!node || !rendition) return;
+     if (node.scrollTop > 20) {
+        node.scrollBy({ top: -(node.clientHeight * 0.8), behavior: 'smooth' });
+     } else {
+        rendition.prev().then(() => { node.scrollTop = 0; }).catch(err => console.warn(err));
      }
   }
 
@@ -296,16 +312,14 @@ export default function App() {
     if (rendition) {
       rendition.display(href).then(() => {
          setShowToc(false);
+         if(viewerRef.current) viewerRef.current.scrollTop = 0;
       }).catch(err => console.warn("Lỗi nhảy trang:", err));
     }
   };
 
   const toggleTheme = () => {
-    if (prefs.themeMode === 'dark') {
-      applyColorTheme(colorThemes[1]); 
-    } else {
-      applyColorTheme(colorThemes[3]); 
-    }
+    if (prefs.themeMode === 'dark') { applyColorTheme(colorThemes[1]); } 
+    else { applyColorTheme(colorThemes[3]); }
   }
 
   const applyColorTheme = (theme) => {
@@ -346,12 +360,21 @@ export default function App() {
       <EyeProtectionOverlay />
       
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
-        <div className="flex items-center gap-2">
-          <BookOpen size={20} className="text-teal-600" />
-          <span className="font-bold text-lg hidden sm:block font-serif">Ghibli Reader Pro</span>
+        <div className="flex items-center gap-2 overflow-hidden"> 
+          <BookOpen size={20} className="text-teal-600 flex-shrink-0" />
+          {/* --- TIÊU ĐỀ GỌN GÀNG --- 
+              md:max-w-xs: Trên tablet/PC chỉ cho rộng vừa phải (khoảng 320px)
+              truncate: Dài quá thì tự cắt thành ...
+          */}
+          <span 
+            className="font-bold text-lg hidden sm:block font-serif truncate max-w-[200px] md:max-w-xs text-teal-900" 
+            title={bookTitle}
+          >
+            {bookTitle}
+          </span>
         </div>
         
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           <button 
             ref={tocBtnRef}
             onClick={() => { setShowToc(!showToc); setShowSettings(false); }} 
@@ -373,7 +396,6 @@ export default function App() {
             <Settings size={20} />
           </button>
           
-          {/* 👇 QUAN TRỌNG: Thêm class 'hidden md:block' để ẩn nút này trên mobile */}
           <button 
             onClick={toggleFullscreen} 
             className="hidden md:block p-2 rounded-full hover:bg-gray-400/20 transition-colors"
@@ -434,8 +456,8 @@ export default function App() {
         
         {book && !loading && !error && (
           <>
-            <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
-            <button onClick={nextChapter} className="hidden md:flex absolute right-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-10 items-center justify-center group" title="Chương sau"><ChevronRight size={24} className="group-active:translate-x-1 transition-transform" /></button>
+            <button onClick={prevChapter} className="hidden md:flex absolute left-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-30 items-center justify-center group" title="Chương trước"><ChevronLeft size={24} className="group-active:-translate-x-1 transition-transform" /></button>
+            <button onClick={nextChapter} className="hidden md:flex absolute right-4 bottom-10 p-4 bg-teal-700/80 hover:bg-teal-600 text-white rounded-full shadow-lg transition-all z-30 items-center justify-center group" title="Chương sau"><ChevronRight size={24} className="group-active:translate-x-1 transition-transform" /></button>
           </>
         )}
       </div>
@@ -457,8 +479,11 @@ export default function App() {
          <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
       </div>
 
-      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-500 z-50">
-         <span>Ghibli Reader Pro</span>
+      {/* 👇 FOOTER PC: Tên sách cắt gọn gàng, không lấn sân nút khác */}
+      <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-600 z-50">
+         <span className="font-serif font-medium truncate max-w-[200px] md:max-w-sm lg:max-w-md" title={bookTitle}>
+            {bookTitle}
+         </span>
          <div className="flex items-center gap-2"><span>Tiến độ:</span><span className="font-mono font-bold text-teal-700">{progress}%</span></div>
          <div className="absolute top-0 left-0 h-[3px] bg-teal-600 transition-all duration-500 shadow-sm" style={{ width: `${progress}%` }}></div>
       </div>
