@@ -144,7 +144,8 @@ export default function App() {
 
   useEffect(() => {
     const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Patrick+Hand&display=swap';
+    // 👇 ĐÃ THÊM ROBOTO VÀO ĐÂY
+    link.href = 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Patrick+Hand&family=Roboto:wght@400;500;700&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, []);
@@ -362,12 +363,9 @@ export default function App() {
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
         <div className="flex items-center gap-2 overflow-hidden"> 
           <BookOpen size={20} className="text-teal-600 flex-shrink-0" />
-          {/* --- TIÊU ĐỀ GỌN GÀNG --- 
-              md:max-w-xs: Trên tablet/PC chỉ cho rộng vừa phải (khoảng 320px)
-              truncate: Dài quá thì tự cắt thành ...
-          */}
+          {/* TIÊU ĐỀ HEADER: Dùng font Roboto (mặc định font-sans đã được map bên dưới) */}
           <span 
-            className="font-bold text-lg hidden sm:block font-serif truncate max-w-[200px] md:max-w-xs text-teal-900" 
+            className="font-bold text-lg hidden sm:block truncate max-w-[200px] md:max-w-xs text-teal-900" 
             title={bookTitle}
           >
             {bookTitle}
@@ -479,9 +477,9 @@ export default function App() {
          <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px]">Sau</span></button>
       </div>
 
-      {/* 👇 FOOTER PC: Tên sách cắt gọn gàng, không lấn sân nút khác */}
+      {/* FOOTER PC: Dùng font Roboto (thông qua class font-sans được map bên dưới) */}
       <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-600 z-50">
-         <span className="font-serif font-medium truncate max-w-[200px] md:max-w-sm lg:max-w-md" title={bookTitle}>
+         <span className="font-medium truncate max-w-[200px] md:max-w-sm lg:max-w-md" title={bookTitle}>
             {bookTitle}
          </span>
          <div className="flex items-center gap-2"><span>Tiến độ:</span><span className="font-mono font-bold text-teal-700">{progress}%</span></div>
@@ -489,6 +487,9 @@ export default function App() {
       </div>
 
       <style>{`
+        /* Ép toàn bộ giao diện dùng Roboto */
+        .font-sans, body, button, input { font-family: 'Roboto', sans-serif !important; }
+        
         .custom-scroll::-webkit-scrollbar { height: 4px; } 
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; } 
         ::selection { background: #14b8a6; color: white; } 
