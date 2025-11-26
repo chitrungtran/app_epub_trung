@@ -45,7 +45,6 @@ export default function App() {
   const [toc, setToc] = useState([]);
   
   const [progress, setProgress] = useState("0.0"); 
-  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
@@ -184,6 +183,7 @@ export default function App() {
       }
 
       const bookUrl = processUrl(urlParam);
+      // Tạo ID để lưu vị trí
       const bookKey = `ghibli_pos_${btoa(bookUrl).slice(0, 20)}`;
 
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
@@ -230,10 +230,29 @@ export default function App() {
           setBookTitle(title); 
           if (title) document.title = title; 
 
+          // 🔥 PHẦN FIX LỖI "NO SECTION FOUND" Ở ĐÂY 🔥
+          // 1. Lấy vị trí đã lưu
           const savedCfi = localStorage.getItem(bookKey);
-          const startCfi = savedCfi || newBook.spine.get(0).href;
           
-          await newRendition.display(startCfi);
+          try {
+             // 2. Cố gắng hiển thị vị trí cũ
+             if (savedCfi) {
+                await newRendition.display(savedCfi);
+             } else {
+                // Nếu không có vị trí cũ, hiển thị từ đầu
+                await newRendition.display();
+             }
+          } catch (displayError) {
+             console.warn("Lỗi hiển thị trang cũ:", displayError);
+             // 3. NẾU LỖI: Xóa vị trí cũ đi và load lại từ đầu
+             localStorage.removeItem(bookKey);
+             try {
+               await newRendition.display();
+             } catch (retryError) {
+               // Nếu vẫn lỗi thì mới báo ra ngoài
+               throw new Error("Không thể hiển thị nội dung sách.");
+             }
+          }
           
           setLoading(false);
           
@@ -257,31 +276,18 @@ export default function App() {
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
 
-          // 🔥 FIX THANH TIẾN ĐỘ (QUAN TRỌNG)
           newRendition.on('relocated', (location) => {
              if (location && location.start) {
-                // 1. Tính phần trăm chính xác từ CFI (nếu đã generate xong locations)
-                let percent = newBook.locations.percentageFromCfi(location.start.cfi);
-                
-                // 2. Nếu chưa generate xong, percent sẽ là null/undefined -> Dùng cách tính tạm thời
-                if (percent === null || percent === undefined) {
-                   // Tính tạm dựa trên số trang đã lật / tổng số trang (ước lượng)
-                   // Đây là giải pháp dự phòng để số không bị 0.0
-                   // Tuy nhiên với chế độ 'scrolled' thì index này hơi khó lấy chính xác tuyệt đối
-                   // Ta cứ để yên chờ generate xong.
-                } else {
+                const percent = newBook.locations.percentageFromCfi(location.start.cfi);
+                if (percent !== null && percent !== undefined) {
                    const p = (percent * 100).toFixed(1);
                    setProgress(p);
                 }
-
                 localStorage.setItem(bookKey, location.start.cfi);
              }
           });
           
-          // 🔥 TẠO LOCATIONS VỚI CHIA NHỎ 1000 KÝ TỰ (ĐỂ CÓ ĐỘ CHÍNH XÁC CAO)
-          // Thêm .then() để cập nhật ngay khi đếm xong
           newBook.locations.generate(1000).then(() => {
-             // Đếm xong thì cập nhật lại ngay lập tức vị trí hiện tại
              const currentLocation = newRendition.currentLocation();
              if (currentLocation && currentLocation.start) {
                 const percent = newBook.locations.percentageFromCfi(currentLocation.start.cfi);
@@ -520,6 +526,7 @@ export default function App() {
          <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px] font-sans">Sau</span></button>
       </div>
 
+      {/* FOOTER PC: Roboto (font-sans) */}
       <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-600 z-50 font-sans">
          <span className="font-medium truncate max-w-[200px] md:max-w-sm lg:max-w-md" title={bookTitle}>
             {bookTitle}
