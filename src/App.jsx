@@ -44,7 +44,6 @@ export default function App() {
   const [showToc, setShowToc] = useState(false);
   const [toc, setToc] = useState([]);
   
-  // 👇 Sửa thành chuỗi để hiển thị số thập phân (VD: "12.5")
   const [progress, setProgress] = useState("0.0"); 
   
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -64,14 +63,6 @@ export default function App() {
     themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
-
-  const fonts = [
-    { name: 'Literata', label: 'Sách (Chuẩn)', type: 'serif' }, 
-    { name: 'Merriweather', label: 'Cổ điển', type: 'serif' },
-    { name: 'Roboto', label: 'Hiện đại', type: 'sans-serif' },
-    { name: 'Patrick Hand', label: 'Viết tay', type: 'cursive' },
-    { name: '', label: 'Mặc định sách', type: '' }, 
-  ];
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
@@ -193,7 +184,6 @@ export default function App() {
       }
 
       const bookUrl = processUrl(urlParam);
-      // Tạo ID duy nhất cho sách dựa trên URL để lưu vị trí
       const bookKey = `ghibli_pos_${btoa(bookUrl).slice(0, 20)}`;
 
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
@@ -240,7 +230,6 @@ export default function App() {
           setBookTitle(title); 
           if (title) document.title = title; 
 
-          // 🔥 KHÔI PHỤC VỊ TRÍ ĐỌC CŨ (Nếu có)
           const savedCfi = localStorage.getItem(bookKey);
           const startCfi = savedCfi || newBook.spine.get(0).href;
           
@@ -268,22 +257,38 @@ export default function App() {
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
 
-          // 🔥 CẬP NHẬT TIẾN ĐỘ CHI TIẾT & LƯU VỊ TRÍ
+          // 🔥 FIX THANH TIẾN ĐỘ (QUAN TRỌNG)
           newRendition.on('relocated', (location) => {
              if (location && location.start) {
-                // Tính % chi tiết 0.1%
-                const percent = newBook.locations.percentageFromCfi(location.start.cfi);
-                const p = (percent * 100).toFixed(1); // Lấy 1 số lẻ (VD: 12.5)
-                setProgress(p);
+                // 1. Tính phần trăm chính xác từ CFI (nếu đã generate xong locations)
+                let percent = newBook.locations.percentageFromCfi(location.start.cfi);
                 
-                // Lưu vị trí hiện tại vào LocalStorage
+                // 2. Nếu chưa generate xong, percent sẽ là null/undefined -> Dùng cách tính tạm thời
+                if (percent === null || percent === undefined) {
+                   // Tính tạm dựa trên số trang đã lật / tổng số trang (ước lượng)
+                   // Đây là giải pháp dự phòng để số không bị 0.0
+                   // Tuy nhiên với chế độ 'scrolled' thì index này hơi khó lấy chính xác tuyệt đối
+                   // Ta cứ để yên chờ generate xong.
+                } else {
+                   const p = (percent * 100).toFixed(1);
+                   setProgress(p);
+                }
+
                 localStorage.setItem(bookKey, location.start.cfi);
              }
           });
           
-          // Tạo danh sách vị trí (để tính %)
-          // Tăng số lượng locations (2000) cho sách dày để tính chính xác hơn
-          newBook.locations.generate(2000).catch(e => console.warn(e));
+          // 🔥 TẠO LOCATIONS VỚI CHIA NHỎ 1000 KÝ TỰ (ĐỂ CÓ ĐỘ CHÍNH XÁC CAO)
+          // Thêm .then() để cập nhật ngay khi đếm xong
+          newBook.locations.generate(1000).then(() => {
+             // Đếm xong thì cập nhật lại ngay lập tức vị trí hiện tại
+             const currentLocation = newRendition.currentLocation();
+             if (currentLocation && currentLocation.start) {
+                const percent = newBook.locations.percentageFromCfi(currentLocation.start.cfi);
+                const p = (percent * 100).toFixed(1);
+                setProgress(p);
+             }
+          }).catch(e => console.warn("Lỗi tạo locations:", e));
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -498,7 +503,6 @@ export default function App() {
         )}
       </div>
 
-      {/* THANH TIẾN ĐỘ - CẬP NHẬT: HIỆN SỐ LẺ (VD: 12.5%) */}
       {book && !loading && !error && (
         <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden font-sans">
            <span>Đã đọc</span>
