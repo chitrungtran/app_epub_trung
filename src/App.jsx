@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, ChevronLeft, ChevronRight, Settings, 
   Maximize, Minimize, Sun, Moon, 
-  Eye, X, Loader2, AlignJustify, AlertCircle, List, Move
+  Eye, X, Loader2, AlignJustify, AlertCircle, List, Type, Move
 } from 'lucide-react';
 
 const useScript = (src) => {
@@ -44,7 +44,9 @@ export default function App() {
   const [showToc, setShowToc] = useState(false);
   const [toc, setToc] = useState([]);
   
-  const [progress, setProgress] = useState(0); 
+  // 👇 Sửa thành chuỗi để hiển thị số thập phân (VD: "12.5")
+  const [progress, setProgress] = useState("0.0"); 
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef(null);
 
@@ -53,9 +55,8 @@ export default function App() {
   const tocRef = useRef(null); 
   const tocBtnRef = useRef(null); 
 
-  // --- CẤU HÌNH MẶC ĐỊNH ---
-  // Đã xóa fontFamily khỏi state vì giờ mặc định là Literata rồi, không cho chọn nữa
   const [prefs, setPrefs] = useState({
+    fontFamily: 'Literata', 
     fontSize: 100,
     lineHeight: 1.6,
     textColor: '#5f4b32',
@@ -63,6 +64,14 @@ export default function App() {
     themeMode: 'sepia',
   });
   const [eyeCareLevel, setEyeCareLevel] = useState(0);
+
+  const fonts = [
+    { name: 'Literata', label: 'Sách (Chuẩn)', type: 'serif' }, 
+    { name: 'Merriweather', label: 'Cổ điển', type: 'serif' },
+    { name: 'Roboto', label: 'Hiện đại', type: 'sans-serif' },
+    { name: 'Patrick Hand', label: 'Viết tay', type: 'cursive' },
+    { name: '', label: 'Mặc định sách', type: '' }, 
+  ];
 
   const colorThemes = [
     { label: 'Sáng', text: '#2d3748', bg: '#ffffff' },
@@ -72,7 +81,6 @@ export default function App() {
     { label: 'Đêm', text: '#a3a3a3', bg: '#000000' },
   ];
 
-  // --- XỬ LÝ SỰ KIỆN ---
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showSettings && settingsRef.current && !settingsRef.current.contains(event.target) && !settingsBtnRef.current.contains(event.target)) {
@@ -144,16 +152,13 @@ export default function App() {
     }
   }, [jszipStatus, epubStatus]);
 
-  // --- NẠP FONT ---
   useEffect(() => {
     const link = document.createElement('link');
-    // Chỉ nạp Literata (cho sách) và Roboto (cho UI)
-    link.href = 'https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,700;1,7..72,400&family=Roboto:wght@400;500;700&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,700;1,7..72,400&family=Merriweather:wght@400;700&family=Patrick+Hand&family=Roboto:wght@400;500;700&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, []);
 
-  // --- PHÍM TẮT ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!rendition) return;
@@ -170,7 +175,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [rendition]);
 
-  // --- LOGIC CHÍNH: TẢI SÁCH ---
   useEffect(() => {
     if (isReady && viewerRef.current) {
       let urlParam = getUrlParameter('url') || getUrlParameter('book');
@@ -182,7 +186,6 @@ export default function App() {
         return; 
       }
 
-      // 🔥 GIẢI MÃ LINK (BASE64)
       if (!urlParam.startsWith('http')) {
          try {
             urlParam = atob(urlParam);
@@ -190,6 +193,9 @@ export default function App() {
       }
 
       const bookUrl = processUrl(urlParam);
+      // Tạo ID duy nhất cho sách dựa trên URL để lưu vị trí
+      const bookKey = `ghibli_pos_${btoa(bookUrl).slice(0, 20)}`;
+
       if (book) { book.destroy(); viewerRef.current.innerHTML = ''; }
 
       const loadBook = async () => {
@@ -234,7 +240,10 @@ export default function App() {
           setBookTitle(title); 
           if (title) document.title = title; 
 
-          const startCfi = newBook.spine.get(0).href;
+          // 🔥 KHÔI PHỤC VỊ TRÍ ĐỌC CŨ (Nếu có)
+          const savedCfi = localStorage.getItem(bookKey);
+          const startCfi = savedCfi || newBook.spine.get(0).href;
+          
           await newRendition.display(startCfi);
           
           setLoading(false);
@@ -243,12 +252,11 @@ export default function App() {
              viewerRef.current.focus(); 
           }
           
-          // --- TIÊM FONT LITERATA VÀO SÁCH ---
           try {
              newRendition.hooks.content.register((contents) => {
                 const link = contents.document.createElement('link');
                 link.rel = 'stylesheet';
-                link.href = 'https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,700;1,7..72,400&display=swap';
+                link.href = 'https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,700;1,7..72,400&family=Merriweather:wght@400;700&family=Patrick+Hand&family=Roboto:wght@400;500;700&display=swap';
                 contents.document.head.appendChild(link);
              });
           } catch (hookError) {
@@ -260,15 +268,22 @@ export default function App() {
           const navigation = await newBook.loaded.navigation;
           setToc(navigation.toc); 
 
+          // 🔥 CẬP NHẬT TIẾN ĐỘ CHI TIẾT & LƯU VỊ TRÍ
           newRendition.on('relocated', (location) => {
              if (location && location.start) {
+                // Tính % chi tiết 0.1%
                 const percent = newBook.locations.percentageFromCfi(location.start.cfi);
-                const p = Math.floor(percent * 100);
-                setProgress(isNaN(p) ? 0 : p);
+                const p = (percent * 100).toFixed(1); // Lấy 1 số lẻ (VD: 12.5)
+                setProgress(p);
+                
+                // Lưu vị trí hiện tại vào LocalStorage
+                localStorage.setItem(bookKey, location.start.cfi);
              }
           });
           
-          newBook.locations.generate(1000).catch(e => console.warn(e));
+          // Tạo danh sách vị trí (để tính %)
+          // Tăng số lượng locations (2000) cho sách dày để tính chính xác hơn
+          newBook.locations.generate(2000).catch(e => console.warn(e));
 
         } catch (err) {
           console.error("Lỗi:", err);
@@ -281,7 +296,6 @@ export default function App() {
     }
   }, [isReady]);
 
-  // --- CẬP NHẬT STYLE CHO SÁCH (ÉP FONT LITERATA) ---
   const updateBookStyles = (rend, settings) => {
     if (!rend) return;
     try {
@@ -292,7 +306,6 @@ export default function App() {
           'background': `${settings.bgColor} !important`,
           'color': `${settings.textColor} !important`,
           'padding': '20px 10px !important',
-          // 👇 Ép dùng Literata, nếu lỗi thì về serif mặc định
           'font-family': '"Literata", serif !important' 
         },
         'p': {
@@ -303,7 +316,6 @@ export default function App() {
           'font-family': '"Literata", serif !important'
         },
         'h1, h2, h3, h4, h5': {
-           // Tiêu đề trong sách cũng dùng Literata nhưng sans-serif
            'font-family': '"Literata", sans-serif !important',
            'color': `${settings.textColor} !important`,
         },
@@ -318,7 +330,6 @@ export default function App() {
     if (rendition) updateBookStyles(rendition, prefs);
   }, [prefs, rendition]);
 
-  // --- NÚT BẤM THÔNG MINH ---
   const nextChapter = () => {
      const node = viewerRef.current;
      if (!node || !rendition) return;
@@ -393,7 +404,6 @@ export default function App() {
       <div className="flex-none h-14 px-4 flex items-center justify-between border-b border-gray-400/20 backdrop-blur-sm z-50 relative">
         <div className="flex items-center gap-2 overflow-hidden"> 
           <BookOpen size={20} className="text-teal-600 flex-shrink-0" />
-          {/* TIÊU ĐỀ APP: Roboto (font-sans) */}
           <span 
             className="font-bold text-lg hidden sm:block truncate max-w-[200px] md:max-w-xs text-teal-900 font-sans" 
             title={bookTitle}
@@ -433,7 +443,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Bảng Mục lục */}
       {showToc && (
         <div 
           ref={tocRef} 
@@ -445,7 +454,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Bảng Cài đặt (Đã xóa chọn Font) */}
       {showSettings && (
         <div 
           ref={settingsRef} 
@@ -454,9 +462,7 @@ export default function App() {
         >
            <div className="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl"><span className="font-bold text-sm uppercase text-gray-500 font-sans">Cấu hình</span><button onClick={() => setShowSettings(false)}><X size={18} className="text-gray-400 hover:text-red-500"/></button></div>
            <div className="p-5 space-y-6">
-            
             <div className="space-y-2"><div className="flex items-center gap-2 text-teal-700 font-medium font-sans"><Sun size={16}/> <span>Màu giấy</span></div><div className="flex gap-2 overflow-x-auto pb-2 custom-scroll">{colorThemes.map((c, idx) => (<button key={idx} onClick={() => applyColorTheme(c)} className={`flex-shrink-0 w-10 h-10 rounded-full border-2 shadow-sm flex items-center justify-center ${prefs.bgColor === c.bg ? 'border-teal-500 scale-110' : 'border-gray-200'}`} style={{ backgroundColor: c.bg }} title={c.label}><span className="text-[10px] font-bold" style={{color: c.text}}>Aa</span></button>))}</div></div>
-            
             <div className="space-y-4 pt-2 border-t"><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium font-sans"><span>Cỡ chữ</span> <span>{prefs.fontSize}%</span></div><input type="range" min="50" max="200" step="10" value={prefs.fontSize} onChange={(e) => setPrefs({...prefs, fontSize: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div><div><div className="flex justify-between mb-1 text-xs text-gray-500 font-medium font-sans"><span className="flex items-center gap-1"><AlignJustify size={12}/> Giãn dòng</span> <span>{prefs.lineHeight}</span></div><input type="range" min="1" max="2.5" step="0.1" value={prefs.lineHeight} onChange={(e) => setPrefs({...prefs, lineHeight: Number(e.target.value)})} className="w-full accent-teal-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/></div></div>
             <div className="pt-2 border-t"><div className="flex items-center gap-2 text-orange-600 font-medium mb-2 font-sans"><Eye size={16}/> <span>Bảo vệ mắt</span></div><div className="flex items-center gap-3"><Moon size={14} className="text-gray-400"/><input type="range" min="0" max="100" value={eyeCareLevel} onChange={(e) => setEyeCareLevel(Number(e.target.value))} className="w-full accent-orange-500 h-2 bg-orange-100 rounded-lg appearance-none cursor-pointer"/><span className="text-xs font-bold text-orange-600 w-6 font-sans">{eyeCareLevel}%</span></div></div>
            </div>
@@ -492,6 +498,7 @@ export default function App() {
         )}
       </div>
 
+      {/* THANH TIẾN ĐỘ - CẬP NHẬT: HIỆN SỐ LẺ (VD: 12.5%) */}
       {book && !loading && !error && (
         <div className="fixed bottom-0 w-full h-8 bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 text-xs font-mono text-teal-800 z-50 shadow-lg md:hidden font-sans">
            <span>Đã đọc</span>
@@ -509,7 +516,6 @@ export default function App() {
          <button onClick={nextChapter} className="p-3 active:scale-95 opacity-70 flex flex-col items-center"><ChevronRight size={24}/><span className="text-[10px] font-sans">Sau</span></button>
       </div>
 
-      {/* FOOTER PC: Roboto (font-sans) */}
       <div className="hidden md:flex fixed bottom-0 left-0 right-0 h-8 bg-white/90 backdrop-blur border-t border-gray-200 items-center justify-between px-6 text-xs text-gray-600 z-50 font-sans">
          <span className="font-medium truncate max-w-[200px] md:max-w-sm lg:max-w-md" title={bookTitle}>
             {bookTitle}
@@ -519,7 +525,6 @@ export default function App() {
       </div>
 
       <style>{`
-        /* Ép toàn bộ giao diện dùng Roboto */
         .font-sans, body, button, input { font-family: 'Roboto', sans-serif !important; }
         
         .custom-scroll::-webkit-scrollbar { height: 4px; } 
